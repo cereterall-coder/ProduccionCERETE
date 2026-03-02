@@ -1,0 +1,31 @@
+# Node modules
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Large data files
+consolidado_citados.json
+consolidado_horas_efectivas.json
+especialidades_citados.json
+especialidades_horas.json
+
+# Source data directories
+Citados/
+Horas Efectivas/
+citados_por_mes/
+horas_por_mes/
+
+# Desktop/System files
+.DS_Store
+Thumbs.db
+
+# Environments
+.env
+
+# Build outputs
+app/dist/
+app/build/
