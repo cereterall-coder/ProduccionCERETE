@@ -1,0 +1,32 @@
+[
+    {
+        "CARGO": "DIGITADOR",
+        "APELLIDOS_Y_NOMBRES": "CHAVEZ MORALES FIORELLA",
+        "DNI": "71196178",
+        "ACTIVO": true
+    },
+    {
+        "CARGO": "DIGITADOR",
+        "APELLIDOS_Y_NOMBRES": "LA ROSA AVALOS DELIA",
+        "DNI": "40078783",
+        "ACTIVO": true
+    },
+    {
+        "CARGO": "DIGITADOR",
+        "APELLIDOS_Y_NOMBRES": "SANCHEZ REYES DINA",
+        "DNI": "43170195",
+        "ACTIVO": true
+    },
+    {
+        "CARGO": "DIGITADOR",
+        "APELLIDOS_Y_NOMBRES": "Caihuari Portillo Merly Juliza",
+        "DNI": "48630224",
+        "ACTIVO": true
+    },
+    {
+        "CARGO": "DIGITADOR",
+        "APELLIDOS_Y_NOMBRES": "ALVARO LEZAMA VALVERDE",
+        "DNI": "76555964",
+        "ACTIVO": true
+    }
+]

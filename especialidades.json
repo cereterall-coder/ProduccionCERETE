@@ -4,7 +4,8 @@
     "ESPECIALIDAD": "MEDICINA FISICA",
     "NOMBRES Y APELLIDOS": "SOSA CORNEJO ROXANNA",
     "DNI": "40621462",
-    "ACTIVO": true
+    "ACTIVO": true,
+    "FOTO_URL": "/fotos/40621462.png"
   },
   {
     "ITEM": 2,
@@ -25,28 +26,32 @@
     "ESPECIALIDAD": "UROLOGIA",
     "NOMBRES Y APELLIDOS": "SANCHEZ GUANILO FIORELLA",
     "DNI": "72671905",
-    "ACTIVO": true
+    "ACTIVO": true,
+    "FOTO_URL": "/fotos/72671905.png"
   },
   {
     "ITEM": 6,
     "ESPECIALIDAD": "NEUMOLOGIA",
     "NOMBRES Y APELLIDOS": "IPANAQUE REBAZA ROSARIO",
     "DNI": "45450379",
-    "ACTIVO": true
+    "ACTIVO": true,
+    "FOTO_URL": "/fotos/45450379.png"
   },
   {
     "ITEM": 7,
     "ESPECIALIDAD": "OTORRINOLARINGOLOGO",
     "NOMBRES Y APELLIDOS": "PESANTES ARTEAGA MANUEL",
     "DNI": "46395847",
-    "ACTIVO": true
+    "ACTIVO": true,
+    "FOTO_URL": "/fotos/46395847.png"
   },
   {
     "ITEM": 8,
     "ESPECIALIDAD": "MEDICINA INTERNA",
     "NOMBRES Y APELLIDOS": "ALVITRES MEDARRA MILAGROS",
     "DNI": "46551952",
-    "ACTIVO": true
+    "ACTIVO": true,
+    "FOTO_URL": "/fotos/46551952.png"
   },
   {
     "ITEM": 9,
@@ -74,28 +79,31 @@
     "ESPECIALIDAD": "TERAPIA FISICA",
     "NOMBRES Y APELLIDOS": "PORTILLA CARRASCAL ANA",
     "DNI": "45365070",
-    "ACTIVO": true
+    "ACTIVO": true,
+    "FOTO_URL": "/fotos/45365070.png"
   },
   {
     "ITEM": 13,
     "ESPECIALIDAD": "TERAPIA FISICA",
     "NOMBRES Y APELLIDOS": "MARQUINA PIZAN KAREN",
     "DNI": "45942389",
-    "ACTIVO": true
+    "ACTIVO": false
   },
   {
     "ITEM": 14,
     "ESPECIALIDAD": "TERAPIA FISICA",
     "NOMBRES Y APELLIDOS": "AVILA DIAZ JULISSA",
     "DNI": "70192045",
-    "ACTIVO": true
+    "ACTIVO": true,
+    "FOTO_URL": "/fotos/70192045.png"
   },
   {
     "ITEM": 19,
     "ESPECIALIDAD": "MEDICINA FAMILIAR",
     "NOMBRES Y APELLIDOS": "VASQUEZ CHAVEZ DIANA",
     "DNI": "41695778",
-    "ACTIVO": true
+    "ACTIVO": true,
+    "FOTO_URL": "/fotos/41695778.png"
   },
   {
     "ITEM": 20,
@@ -103,13 +111,6 @@
     "NOMBRES Y APELLIDOS": "BAZAN CAMPOS DOMINGO",
     "DNI": "45715770",
     "ACTIVO": false
-  },
-  {
-    "ITEM": 21,
-    "ESPECIALIDAD": "GERIATRA",
-    "NOMBRES Y APELLIDOS": "QUIÑONEZ CHAVEZ CECILIA MILAGROS",
-    "DNI": "45558305",
-    "ACTIVO": true
   },
   {
     "ITEM": 22,
@@ -130,20 +131,31 @@
     "ESPECIALIDAD": "OTORRINOLARINGOLOGO",
     "NOMBRES Y APELLIDOS": "FLOREZ MOSTACERO LILIANA PATRI",
     "DNI": "41474475",
-    "ACTIVO": true
+    "ACTIVO": true,
+    "FOTO_URL": "/fotos/41474475.png"
   },
   {
     "ITEM": 26,
     "ESPECIALIDAD": "PSIQUIATRIA",
     "NOMBRES Y APELLIDOS": "LESLY ROJAS MEZA",
     "DNI": "46846390",
-    "ACTIVO": true
+    "ACTIVO": true,
+    "FOTO_URL": "/fotos/46846390.png"
   },
   {
     "ITEM": 99,
     "ESPECIALIDAD": "PSICOLOGA",
     "NOMBRES Y APELLIDOS": "CINTHYA GANOZA RODRIGUEZ",
     "DNI": "75736689",
-    "ACTIVO": true
+    "ACTIVO": true,
+    "FOTO_URL": "/fotos/75736689.png"
+  },
+  {
+    "ITEM": 21,
+    "ESPECIALIDAD": "PEDIATRIA",
+    "NOMBRES Y APELLIDOS": "FLORES FULLIMOTO ELIA",
+    "DNI": "19232498",
+    "ACTIVO": true,
+    "FOTO_URL": "/fotos/19232498.png"
   }
 ]

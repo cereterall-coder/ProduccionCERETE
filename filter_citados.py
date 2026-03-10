@@ -3,7 +3,7 @@ import os
 from collections import defaultdict
 
 def filter_citados():
-    base_path = r"c:\Users\ACER\.gemini\antigravity\scratch\Explota"
+    base_path = r"d:\Web_Cerete\Amalviva\Explota"
     especialidades_file = os.path.join(base_path, "especialidades.json")
     consolidado_file    = os.path.join(base_path, "consolidado_citados.json")
     output_file         = os.path.join(base_path, "especialidades_citados.json")

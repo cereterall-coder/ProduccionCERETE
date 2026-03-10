@@ -1,7 +1,7 @@
 import requests
 import json
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 
 # 1. Get current data for ITEM 1
 res = requests.get(f"{BASE_URL}/especialidades")

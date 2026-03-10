@@ -4,16 +4,60 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
   Users, Play, Plus, Trash2, Edit2, RefreshCw, Database,
-  Search, CheckCircle2, AlertCircle, X, LayoutDashboard,
+  Search, CheckCircle2, AlertCircle, X, LayoutDashboard, Activity,
   ArrowRight, UserPlus, Filter, Info, FileText, BarChart3,
   Calendar, Hospital, Stethoscope, ChevronRight, ChevronDown, Table as TableIcon,
-  Copyright, PanelLeftClose, PanelLeftOpen
+  Copyright, PanelLeftClose, PanelLeftOpen, Maximize, Minimize, LogOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import logoCerete from './assets/logo_cerete.png';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList
+} from 'recharts';
 
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '';
+
+const CENTROS_MAP = {
+  "671": "HOSPITAL NACIONAL VIRGEN DE LA PUERTA",
+  "205": "HOSPITAL VICTOR LAZARTE",
+  "206": "HOSPITAL II CHOCOPE",
+  "207": "HOSPITAL I ALBRECHT",
+  "208": "HOSPITAL I PACASMAYO",
+  "211": "HOSPITAL I FLORENCIA DE MORA",
+  "212": "HOSPITAL I LA ESPERANZA",
+  "213": "HOSPITAL I MOCHE",
+  "241": "HOSPITAL I VIRU",
+  "444": "HOSPITAL I CHAO",
+  "429": "CME CASA GRANDE",
+  "209": "CM ASCOPE",
+  "210": "POLICLINICO EL PORVENIR",
+  "443": "POLICLINICO LARCO",
+  "484": "CAP. III METROPOLITANO",
+  "223": "CAP. II GUADALUPE",
+  "224": "CAP. II HUAMACHUCO",
+  "226": "CAP. II LAREDO",
+  "229": "CAP. II OTUZCO",
+  "219": "CAP. I CASCAS",
+  "220": "CAP. I CHICAMA",
+  "228": "CAP. I MALABRIGO",
+  "231": "CAP. I SALAVERRY",
+  "235": "CAP. I SAN PEDRO",
+  "239": "CAP. I SOLEDAD",
+  "240": "CAP. I TAYABAMBA",
+  "218": "PM CARTAVIO",
+  "225": "PM JEQUETEPEQUE",
+  "227": "PM LIMONCARRO",
+  "230": "PM QUIRUVILCA",
+  "233": "PM SAN JOSE",
+  "236": "PM STGO DE CHUCO",
+  "237": "PM SAUSAL",
+  "432": "PM PAIJAN",
+  "433": "PM SANTIAGO DE CAO",
+  "442": "CM HUANCHACO"
+};
+
+const getCentroNombre = (code) => CENTROS_MAP[String(code)] || code;
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -29,41 +73,140 @@ const App = () => {
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [dashboardDate, setDashboardDate] = useState(() => {
     const now = new Date();
-    return now.toISOString().slice(0, 10); // "YYYY-MM-DD" para input date
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   });
 
   const [filters, setFilters] = useState({ centro: 'all', servicio: 'all', profesional: 'all', mes: 'all', field: 'PRO' });
-  const [form, setForm] = useState({ ITEM: '', ESPECIALIDAD: '', NOMBRES_Y_APELLIDOS: '', DNI: '', ACTIVO: true });
+  const [form, setForm] = useState({ ITEM: '', ESPECIALIDAD: '', NOMBRES_Y_APELLIDOS: '', DNI: '', ACTIVO: true, FOTO_URL: '' });
   const [editingId, setEditingId] = useState(null);
   const [showAuthorship, setShowAuthorship] = useState(false);
   const [selectedProfCalendar, setSelectedProfCalendar] = useState(null); // modal calendario
   const [activeProcess, setActiveProcess] = useState('horas'); // sub-pestañas de Consolidación
   const [importingCitados, setImportingCitados] = useState(false);
   const [processingCitados, setProcessingCitados] = useState(false);
+  const [importingTerminalista, setImportingTerminalista] = useState(false);
+  const [processingTerminalista, setProcessingTerminalista] = useState(false);
   const [citadosData, setCitadosData] = useState([]);
+  const [terminalistaData, setTerminalistaData] = useState([]);
   const [selectedProfCitados, setSelectedProfCitados] = useState('all');
+  const [selectedDigitador, setSelectedDigitador] = useState('all');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [loadingCitados, setLoadingCitados] = useState(false);
+  const [loadingTerminalista, setLoadingTerminalista] = useState(false);
   const [mesesCitados, setMesesCitados] = useState([]);
-  const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+  const [mesesTerminalista, setMesesTerminalista] = useState([]);
+  const nowLocal = new Date();
+  const currentMonth = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, '0')}`; // "YYYY-MM" local
   const [mesCitados, setMesCitados] = useState(currentMonth);
+  const [mesTerminalista, setMesTerminalista] = useState(currentMonth);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => sessionStorage.getItem('auth_cerete') === 'true');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [loginError, setLoginError] = useState(false);
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const expectedPass = `cerete${dd}${mm}`;
+
+    if (passwordInput === expectedPass) {
+      setIsAuthenticated(true);
+      sessionStorage.setItem('auth_cerete', 'true');
+      setLoginError(false);
+    } else {
+      setLoginError(true);
+      setPasswordInput('');
+    }
+  };
 
   useEffect(() => {
     fetchData();
     fetchReportData();
+
+    // Configurar WebSocket para actualizaciones en tiempo real
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host || 'localhost:8080';
+    const ws = new WebSocket(`${protocol}//${host}/ws`);
+
+    ws.onmessage = (event) => {
+      if (event.data === 'refresh') {
+        console.log('Actualización detectada, recargando datos...');
+        fetchData();
+        fetchReportData();
+        // También recargar citados si estamos en esa pestaña o se requiere
+        if (mesCitados) fetchCitadosData(mesCitados);
+        if (mesTerminalista) fetchTerminalistaData(mesTerminalista);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket cerrado. Reintentando en 5s...');
+      setTimeout(() => {
+        // Podrías implementar una lógica de reconexión aquí
+      }, 5000);
+    };
+
+    return () => ws.close();
+  }, []);
+
+  // ── Actualización Automática para Televisores/Monitores ───────────────────
+  useEffect(() => {
+    // Configurar un intervalo de 5 minutos (300,000 ms)
+    const autoRefreshInterval = setInterval(() => {
+      console.log('Recarga automática de datos para monitoreo...');
+      fetchData();
+      fetchReportData();
+      if (activeTab === 'dashboard' || activeTab === 'monitoreo-hoy') {
+        // Asegurarse de que se refresque con la fecha actual local
+        const n = new Date();
+        const y = n.getFullYear();
+        const m = String(n.getMonth() + 1).padStart(2, '0');
+        const d = String(n.getDate()).padStart(2, '0');
+        setDashboardDate(`${y}-${m}-${d}`);
+      }
+    }, 300000); // 5 minutos
+
+    return () => clearInterval(autoRefreshInterval);
+  }, [activeTab]);
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().then(() => setIsFullscreen(false));
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
   const fetchCitadosData = async (mes) => {
     setLoadingCitados(true);
     try {
-      // Si hay carpetas por mes, usar el endpoint por mes
       const url = mes
         ? `${API_BASE}/citados-data-mes?mes=${mes}`
         : `${API_BASE}/citados-data`;
       const res = await axios.get(url);
-      setCitadosData(res.data);
-    } catch (err) { console.error('No se pudo cargar citados:', err); }
+      const data = Array.isArray(res.data) ? res.data : [];
+      setCitadosData(data);
+    } catch (err) { 
+      console.error('No se pudo cargar citados:', err); 
+      setCitadosData([]);
+    }
     finally { setLoadingCitados(false); }
   };
 
@@ -72,21 +215,35 @@ const App = () => {
       const res = await axios.get(`${API_BASE}/citados-meses`);
       const meses = res.data;
       setMesesCitados(meses);
-      // Determinar mes a cargar: mes actual si existe, sino el ultimo disponible
-      const target = meses.includes(currentMonth)
-        ? currentMonth
-        : meses.length > 0 ? meses[meses.length - 1] : null;
-      if (target) {
-        setMesCitados(target);
-        fetchCitadosData(target);
-      } else {
-        // Fallback al archivo plano
-        fetchCitadosData(null);
-      }
-    } catch (err) {
-      console.error(err);
-      fetchCitadosData(null);
+      const target = meses.includes(currentMonth) ? currentMonth : (meses.length > 0 ? meses[meses.length - 1] : null);
+      if (target) { setMesCitados(target); fetchCitadosData(target); }
+      else { fetchCitadosData(null); }
+    } catch (err) { console.error(err); fetchCitadosData(null); }
+  };
+
+  const fetchTerminalistaData = async (mes) => {
+    setLoadingTerminalista(true);
+    try {
+      const url = mes ? `${API_BASE}/terminalista-data-mes?mes=${mes}` : `${API_BASE}/terminalista-data`;
+      const res = await axios.get(url);
+      const data = Array.isArray(res.data) ? res.data : [];
+      setTerminalistaData(data);
+    } catch (err) { 
+      console.error('Error cargando terminalistas:', err); 
+      setTerminalistaData([]);
     }
+    finally { setLoadingTerminalista(false); }
+  };
+
+  const fetchMesesTerminalista = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/terminalista-meses`);
+      const meses = res.data;
+      setMesesTerminalista(meses);
+      const target = meses.includes(currentMonth) ? currentMonth : (meses.length > 0 ? meses[meses.length - 1] : null);
+      if (target) { setMesTerminalista(target); fetchTerminalistaData(target); }
+      else { fetchTerminalistaData(null); }
+    } catch (err) { console.error(err); fetchTerminalistaData(null); }
   };
 
   const fetchData = async () => {
@@ -100,7 +257,7 @@ const App = () => {
     setLoading(true);
     try {
       const res = await axios.get(`${API_BASE}/report-data`);
-      const data = res.data;
+      const data = Array.isArray(res.data) ? res.data : [];
       setReportData(data);
       if (data.length > 0) {
         const monthsSet = new Set(data.map(d => {
@@ -109,7 +266,6 @@ const App = () => {
         }).filter(Boolean));
 
         if (monthsSet.size > 0) {
-          // Ordenar cronológicamente y tomar el MÁS RECIENTE
           const sortedMonths = [...monthsSet].sort((a, b) => {
             const [mA, yA] = a.split('/').map(Number);
             const [mB, yB] = b.split('/').map(Number);
@@ -119,7 +275,10 @@ const App = () => {
           setFilters(f => ({ ...f, mes: latestMonth }));
         }
       }
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    } catch (err) { 
+      console.error('Error en fetchReportData:', err); 
+      setReportData([]);
+    } finally { setLoading(false); }
   };
 
   const handleImportTxt = async () => {
@@ -155,6 +314,22 @@ const App = () => {
     } catch (err) { alert("Error en el cruce de Citados."); } finally { setProcessingCitados(false); }
   };
 
+  const handleImportTerminalista = async () => {
+    setImportingTerminalista(true);
+    try {
+      await axios.post(`${API_BASE}/import-terminalista`);
+      alert("Archivos TXT de Terminalistas unidos correctamente.");
+    } catch (err) { alert("Error al consolidar Terminalistas."); } finally { setImportingTerminalista(false); }
+  };
+
+  const handleProcessTerminalista = async () => {
+    setProcessingTerminalista(true);
+    try {
+      await axios.post(`${API_BASE}/process-terminalista`);
+      alert("Cruce de Terminalistas completado.");
+    } catch (err) { alert("Error en el cruce de Terminalistas."); } finally { setProcessingTerminalista(false); }
+  };
+
   const val = (v) => {
     if (!v) return 0;
     const num = parseInt(v);
@@ -184,6 +359,12 @@ const App = () => {
 
       if (`${dMonth}/${dYear}` === selectedMes) {
         const profName = d.PROFESIONAL || 'SIN NOMBRE';
+        const dni = d.DOC_PROFESIONAL;
+        
+        // Filtro de Profesionales Activos
+        const masterInfo = especialidades.find(e => e.DNI === dni || e.NOMBRES_Y_APELLIDOS === profName);
+        if (masterInfo && masterInfo.ACTIVO === false) return;
+
         const centerName = d.CENTRO || 'SIN CENTRO';
         const turnoName = d.TURNO || 'SIN TURNO';
         const groupKey = `${centerName} |-| ${turnoName}`;
@@ -207,7 +388,7 @@ const App = () => {
     }).filter(r => r.total > 0).sort((a, b) => a.name.localeCompare(b.name));
 
     return { headers: days, rows };
-  }, [reportData, filters.mes, filters.field, activeReport]);
+  }, [reportData, filters.mes, filters.field, activeReport, especialidades]);
 
   const produccionData = useMemo(() => {
     if (!reportData.length || activeReport !== 'production') return { headers: [], rows: [] };
@@ -215,6 +396,7 @@ const App = () => {
     const months = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
     const grouping = {};
     const yearsSet = new Set();
+
 
     reportData.forEach(d => {
       if (!d.PERIODO) return;
@@ -224,9 +406,18 @@ const App = () => {
       const dYear = parts[2];
       yearsSet.add(dYear);
 
-      const serviceName = d.SERVICIO || 'SIN SERVICIO';
+      let serviceName = d.SERVICIO || 'SIN SERVICIO';
+      if (serviceName.includes('TECNOLOGO MEDICO') && serviceName.includes('TERAPIA FISICA')) {
+        serviceName = 'T.M EN TERAPIA FISICA Y REHABILITACION';
+      }
       const centerName = d.CENTRO || 'SIN CENTRO';
       const monthIdx = dMonth - 1;
+
+      // Filtro de Profesionales Activos
+      const profName = d.PROFESIONAL;
+      const dni = d.DOC_PROFESIONAL;
+      const masterInfo = especialidades.find(e => e.DNI === dni || e.NOMBRES_Y_APELLIDOS === profName);
+      if (masterInfo && masterInfo.ACTIVO === false) return;
 
       if (!grouping[serviceName]) grouping[serviceName] = { _total: 0 };
       if (!grouping[serviceName][centerName]) grouping[serviceName][centerName] = {};
@@ -235,6 +426,7 @@ const App = () => {
       const key = `${monthIdx}-${dYear}`;
       grouping[serviceName][centerName][key] = (grouping[serviceName][centerName][key] || 0) + ateVal;
       grouping[serviceName]._total += ateVal;
+
     });
 
     const sortedYears = Array.from(yearsSet).sort();
@@ -253,7 +445,8 @@ const App = () => {
     }).filter(r => r.total > 0).sort((a, b) => a.name.localeCompare(b.name));
 
     return { headers, rows };
-  }, [reportData, activeReport]);
+  }, [reportData, activeReport, especialidades]);
+
 
   const resumenData = useMemo(() => {
     if (!reportData.length || activeReport !== 'month') return { headers: [], rows: [] };
@@ -279,6 +472,11 @@ const App = () => {
       if (`${dMonth}/${dYear}` === selectedMes) {
         if (filters.centro !== 'all' && d.CENTRO !== filters.centro) return;
         const profName = d.PROFESIONAL || 'SIN NOMBRE';
+        const dni = d.DOC_PROFESIONAL;
+
+        // Filtro de Profesionales Activos
+        const masterInfo = especialidades.find(e => e.DNI === dni || e.NOMBRES_Y_APELLIDOS === profName);
+        if (masterInfo && masterInfo.ACTIVO === false) return;
 
         // Determinar Turno (M o T)
         const horaIni = parseInt(String(d.HORA_INI || '').split(':')[0]);
@@ -319,7 +517,7 @@ const App = () => {
     }).filter(r => r.total >= 0).sort((a, b) => a.name.localeCompare(b.name));
 
     return { headers: days, rows };
-  }, [reportData, filters.mes, filters.centro, activeReport]);
+  }, [reportData, filters.mes, filters.centro, activeReport, especialidades]);
 
   const dashboardData = useMemo(() => {
     // Convertir dashboardDate "YYYY-MM-DD" → "DD/MM/YYYY" (formato de PERIODO)
@@ -336,6 +534,7 @@ const App = () => {
           name,
           dni: dni || (masterInfo ? masterInfo.DNI : ''),
           especialidad: masterInfo ? masterInfo.ESPECIALIDAD : (d.SERVICIO || 'ASISTENCIAL'),
+          fotoUrl: masterInfo ? masterInfo.FOTO_URL : '',
           assignments: [],
           totalCit: 0,
           totalPro: 0
@@ -346,25 +545,81 @@ const App = () => {
       profs[name].totalPro += val(d.PRO);
     });
 
-    const sortedList = Object.values(profs).map(p => ({
-      ...p,
-      assignments: p.assignments.sort((a, b) => {
-        const hA = parseInt(String(a.turno).split(':')[0]) || 0;
-        const hB = parseInt(String(b.turno).split(':')[0]) || 0;
-        return hA - hB;
+    const sortedList = Object.values(profs)
+      .filter(p => {
+        const masterInfo = especialidades.find(e => e.DNI === p.dni || e.NOMBRES_Y_APELLIDOS === p.name);
+        return masterInfo ? masterInfo.ACTIVO !== false : true; 
       })
-    })).sort((a, b) => a.name.localeCompare(b.name));
+      .map(p => ({
+        ...p,
+        assignments: p.assignments.sort((a, b) => {
+          const hA = parseInt(String(a.turno).split(':')[0]) || 0;
+          const hB = parseInt(String(b.turno).split(':')[0]) || 0;
+          return hA - hB;
+        })
+      })).sort((a, b) => a.name.localeCompare(b.name));
 
     return {
       stats: {
-        totalPros: Object.keys(profs).length,
-        totalCit: data.reduce((acc, d) => acc + val(d.CIT), 0),
-        totalPro: data.reduce((acc, d) => acc + val(d.PRO), 0),
-        totalAte: data.reduce((acc, d) => acc + val(d.ATE), 0)
+        totalPros: sortedList.length,
+        totalCit: sortedList.reduce((acc, p) => acc + p.totalCit, 0),
+        totalPro: sortedList.reduce((acc, p) => acc + p.totalPro, 0),
+        totalAte: sortedList.reduce((acc, p) => acc + p.assignments.reduce((sum, a) => sum + a.ate, 0), 0)
       },
       list: sortedList
     };
   }, [reportData, especialidades, dashboardDate]);
+
+  const monitoreoDailyData = useMemo(() => {
+    const [yyyy, mm] = dashboardDate.split('-');
+    const targetMonthYear = `${mm}/${yyyy}`;
+    const daysCount = new Date(yyyy, mm, 0).getDate();
+    const result = [];
+    
+    for (let i = 1; i <= daysCount; i++) {
+      const dStr = String(i).padStart(2, '0') + '/' + targetMonthYear;
+      let cSum = 0;
+      let aSum = 0;
+      
+      // Mapear profesionales del día para aplicar filtro de "Activo" igual que en Dashboard
+      const dailyProfs = {};
+      reportData.forEach(d => {
+        if (d.PERIODO === dStr && val(d.PRO) > 0) {
+          const name = d.PROFESIONAL;
+          if (!dailyProfs[name]) {
+            const dni = d.DOC_PROFESIONAL;
+            const masterInfo = especialidades.find(e => e.DNI === dni || e.NOMBRES_Y_APELLIDOS === name);
+            if (masterInfo && masterInfo.ACTIVO === false) return; // Omitir si está en lista maestra como INACTIVO
+            dailyProfs[name] = { cit: 0, ate: 0 };
+          }
+          dailyProfs[name].cit += val(d.CIT);
+          dailyProfs[name].ate += val(d.ATE);
+        }
+      });
+
+      // Sumar totales del día filtrado
+      Object.values(dailyProfs).forEach(p => {
+        cSum += p.cit;
+        aSum += p.ate;
+      });
+
+      result.push({
+        day: i,
+        label: `${i}`,
+        cit: cSum,
+        ate: aSum,
+        porcentaje: cSum > 0 ? Math.round((aSum / cSum) * 100) : 0
+      });
+    }
+    return result;
+  }, [reportData, especialidades, dashboardDate]);
+
+  const monitoreoTotals = useMemo(() => {
+    return monitoreoDailyData.reduce((acc, curr) => ({
+      cit: acc.cit + curr.cit,
+      ate: acc.ate + curr.ate
+    }), { cit: 0, ate: 0 });
+  }, [monitoreoDailyData]);
 
   const currentReportData = activeReport === 'matrix' ? matrixData : (activeReport === 'production' ? produccionData : resumenData);
 
@@ -405,6 +660,26 @@ const App = () => {
       return true;
     });
   }, [citadosData, selectedProfCitados, fechaDesde, fechaHasta]);
+
+  const digitadoresList = useMemo(
+    () => [...new Set(terminalistaData.map(r => r.NOMBRE_USUARIO).filter(Boolean))].sort(),
+    [terminalistaData]
+  );
+
+  const filteredTerminalista = useMemo(() => {
+    return terminalistaData.filter(r => {
+      if (selectedDigitador !== 'all' && r.NOMBRE_USUARIO !== selectedDigitador) return false;
+      if (fechaDesde || fechaHasta) {
+        // En terminalistas el campo es FECHOR_REGISTRO (DD/MM/YYYY HH:MM)
+        const datePart = r.FECHOR_REGISTRO?.split(' ')[0];
+        const fecha = parseDate(datePart);
+        if (!fecha) return false;
+        if (fechaDesde && fecha < new Date(fechaDesde)) return false;
+        if (fechaHasta && fecha > new Date(fechaHasta)) return false;
+      }
+      return true;
+    });
+  }, [terminalistaData, selectedDigitador, fechaDesde, fechaHasta]);
 
   // ── Generación de PDF Citados ────────────────────────────────────────────────
   const generarPDFCitados = () => {
@@ -522,7 +797,7 @@ const App = () => {
       autoTable(doc, {
         startY: 33,
         head: [['CENTRO DE SALUD', 'ATENCIONES']],
-        body: resumen.map(r => [r.centro, r.total]),
+        body: resumen.map(r => [getCentroNombre(r.centro), r.total]),
         foot: [['TOTAL', filas.length]],
         margin: { left: margin, right: margin },
         styles: { fontSize: 9, cellPadding: 2.5, valign: 'middle' },
@@ -535,19 +810,304 @@ const App = () => {
         },
       });
 
-      const [anio, mesNum] = mesCitados.split('-');
+      const parts = mesCitados.includes('-') ? mesCitados.split('-') : mesCitados.split('/');
+      const anio = parts[0].length === 4 ? parts[0] : parts[1];
+      const mesNum = parts[0].length === 4 ? parts[1] : parts[0];
       const nombreArchivo = `${profesional.replace(/\s+/g, '_')}_${mesNum}_${anio}.pdf`;
       doc.save(nombreArchivo);
     };
 
     if (selectedProfCitados === 'all') {
-      // Generar un PDF por cada profesional
-      profListCitados.forEach(prof => {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 14;
+
+      let firstPage = true;
+      profListCitados.forEach((prof) => {
         const filas = filteredCitados.filter(r => r.PROFESIONAL === prof);
-        if (filas.length > 0) crearPDF(prof, filas);
+        if (filas.length === 0) return;
+
+        if (!firstPage) doc.addPage();
+        firstPage = false;
+
+        // --- Página de Detalle ---
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(24, 113, 185);
+        doc.text('Atenciones en Telemedicina', margin, 18);
+
+        doc.setFontSize(10);
+        doc.setTextColor(80, 80, 80);
+        doc.text(`Mes: ${mesCitados}   |   Profesional: ${prof}`, margin, 25);
+
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Total atenciones: ${filas.length}`, margin, 31);
+
+        doc.setDrawColor(24, 113, 185);
+        doc.setLineWidth(0.5);
+        doc.line(margin, 34, pageW - margin, 34);
+
+        autoTable(doc, {
+          startY: 37,
+          columns: COLS_PDF,
+          body: prepararRegistros(filas).map(r => ({ ...r, CENTRO: getCentroNombre(r.CENTRO) })),
+          margin: { left: margin, right: margin },
+          styles: { fontSize: 7, cellPadding: 1, valign: 'middle', lineColor: [220, 230, 241], lineWidth: 0.1 },
+          headStyles: { fillColor: [24, 113, 185], textColor: 255, fontStyle: 'bold', fontSize: 7, cellPadding: 1.2 },
+          alternateRowStyles: { fillColor: [245, 249, 255] },
+          columnStyles: {
+            0: { cellWidth: 42 }, 1: { cellWidth: 42 }, 2: { cellWidth: 18 },
+            3: { cellWidth: 16 }, 4: { cellWidth: 20 }, 5: { cellWidth: 16 }, 6: { cellWidth: 12 },
+          },
+        });
+
+        // --- Página de Resumen ---
+        doc.addPage();
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(24, 113, 185);
+        doc.text('Consolidado de Atenciones', margin, 18);
+
+        doc.setFontSize(10);
+        doc.setTextColor(80, 80, 80);
+        doc.text(`Mes: ${mesCitados}   |   Profesional: ${prof}`, margin, 25);
+
+        doc.setDrawColor(24, 113, 185);
+        doc.setLineWidth(0.5);
+        doc.line(margin, 29, pageW - margin, 29);
+
+        const conteo = {};
+        filas.forEach(r => {
+          const c = r.CENTRO || 'Sin Centro';
+          conteo[c] = (conteo[c] || 0) + 1;
+        });
+        const resumen = Object.entries(conteo)
+          .sort((a, b) => b[1] - a[1])
+          .map(([centro, total]) => ({ centro, total }));
+
+        autoTable(doc, {
+          startY: 33,
+          head: [['CENTRO DE SALUD', 'ATENCIONES']],
+          body: resumen.map(r => [getCentroNombre(r.centro), r.total]),
+          foot: [['TOTAL', filas.length]],
+          margin: { left: margin, right: margin },
+          styles: { fontSize: 9, cellPadding: 2.5, valign: 'middle' },
+          headStyles: { fillColor: [24, 113, 185], textColor: 255, fontStyle: 'bold' },
+          footStyles: { fillColor: [24, 113, 185], textColor: 255, fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [245, 249, 255] },
+          columnStyles: { 0: { cellWidth: 130 }, 1: { cellWidth: 36, halign: 'center', fontStyle: 'bold' } },
+        });
       });
+
+      const parts = mesCitados.includes('-') ? mesCitados.split('-') : mesCitados.split('/');
+      const anio = parts[0].length === 4 ? parts[0] : parts[1];
+      const mesNum = parts[0].length === 4 ? parts[1] : parts[0];
+      doc.save(`Consolidado_Citados_${mesNum}_${anio}.pdf`);
     } else {
       crearPDF(selectedProfCitados, filteredCitados);
+    }
+  };
+
+  const generarPDFTerminalista = () => {
+    const COLS_PDF = [
+      { header: 'CENTRO', dataKey: 'CENTRO' },
+      { header: 'SERVICIO', dataKey: 'SERVICIO' },
+      { header: 'DESC_SERVICIO', dataKey: 'DESC_SERVICIO' },
+      { header: 'FECHOR_REGISTRO', dataKey: 'FECHOR_REGISTRO' },
+      { header: 'VOLUNTARIA', dataKey: 'TIPO_CITA' },
+    ];
+
+    const crearPDF = (digitador, filas) => {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 14;
+
+      autoTable(doc, {
+        startY: 37,
+        columns: COLS_PDF,
+        body: filas.map(r => ({ ...r, CENTRO: getCentroNombre(r.CENTRO) })),
+        margin: { left: margin, right: margin, top: 35 },
+        styles: { fontSize: 7, cellPadding: 0.8, valign: 'middle', minCellHeight: 3 },
+        headStyles: { fillColor: [24, 113, 185], textColor: 255, fontStyle: 'bold', minCellHeight: 4 },
+        alternateRowStyles: { fillColor: [245, 249, 255] },
+        columnStyles: {
+          0: { cellWidth: 55 }, // Centro (Nombre largo)
+          1: { cellWidth: 15 }, // Servicio (Código)
+          2: { cellWidth: 50 }, // Desc_Servicio
+          3: { cellWidth: 32 }, // Fechor_Registro
+          4: { cellWidth: 25 }, // Voluntaria
+        },
+        didDrawPage: (data) => {
+          const pg = doc.internal.getCurrentPageInfo().pageNumber;
+          const pW = doc.internal.pageSize.getWidth();
+          const pH = doc.internal.pageSize.getHeight();
+
+          doc.setFontSize(13);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(24, 113, 185);
+          doc.text('Citas x Terminalista (Productividad)', margin, 18);
+
+          doc.setFontSize(10);
+          doc.setTextColor(80, 80, 80);
+          doc.text(`Mes: ${mesTerminalista}   |   Digitador: ${digitador}`, margin, 25);
+
+          doc.setFontSize(8);
+          doc.setTextColor(150, 150, 150);
+          doc.text(`Total registros: ${filas.length}`, margin, 31);
+
+          doc.setDrawColor(24, 113, 185);
+          doc.setLineWidth(0.5);
+          doc.line(margin, 34, pW - margin, 34);
+
+          doc.setFontSize(7);
+          doc.setTextColor(150, 150, 150);
+          doc.text(`Página ${pg}`, pW / 2, pH - 8, { align: 'center' });
+        },
+      });
+
+      // --- Página de Resumen Final ---
+      doc.addPage();
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(24, 113, 185);
+      doc.text('Consolidado de Citas (Resumen)', margin, 18);
+
+      doc.setFontSize(10);
+      doc.setTextColor(80, 80, 80);
+      doc.text(`Mes: ${mesTerminalista}   |   Digitador: ${digitador}`, margin, 25);
+
+      doc.setDrawColor(24, 113, 185);
+      doc.setLineWidth(0.5);
+      doc.line(margin, 29, pageW - margin, 29);
+
+      const conteo = {};
+      filas.forEach(r => {
+        const c = r.CENTRO || 'Sin Centro';
+        conteo[c] = (conteo[c] || 0) + 1;
+      });
+      const resumenData = Object.entries(conteo)
+        .sort((a, b) => b[1] - a[1])
+        .map(([centro, total]) => [getCentroNombre(centro), total]);
+
+      autoTable(doc, {
+        startY: 33,
+        head: [['CENTRO DE SALUD', 'TOTAL CITAS']],
+        body: resumenData,
+        foot: [['TOTAL GENERAL', filas.length]],
+        margin: { left: margin * 2.5, right: margin * 2.5 }, // Centrar un poco más
+        styles: { fontSize: 9, cellPadding: 2.5, valign: 'middle' },
+        headStyles: { fillColor: [24, 113, 185], textColor: 255, fontStyle: 'bold' },
+        footStyles: { fillColor: [24, 113, 185], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [245, 249, 255] },
+        columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 36, halign: 'center', fontStyle: 'bold' } },
+      });
+
+      const parts = mesTerminalista.includes('-') ? mesTerminalista.split('-') : mesTerminalista.split('/');
+      const anio = parts[0].length === 4 ? parts[0] : parts[1];
+      const mesNum = parts[0].length === 4 ? parts[1] : parts[0];
+      const nombreArchivo = `Terminalista_${digitador.replace(/\s+/g, '_')}_${mesNum}_${anio}.pdf`;
+      doc.save(nombreArchivo);
+    };
+
+    if (selectedDigitador === 'all') {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 14;
+
+      digitadoresList.forEach((dig, idx) => {
+        const filas = filteredTerminalista.filter(r => r.NOMBRE_USUARIO === dig);
+        if (filas.length === 0) return;
+
+        if (idx > 0) doc.addPage();
+
+        autoTable(doc, {
+          startY: 37,
+          columns: COLS_PDF,
+          body: filas.map(r => ({ ...r, CENTRO: getCentroNombre(r.CENTRO) })),
+          margin: { left: margin, right: margin, top: 35 },
+          styles: { fontSize: 7, cellPadding: 0.8, valign: 'middle', minCellHeight: 3 },
+          headStyles: { fillColor: [24, 113, 185], textColor: 255, fontStyle: 'bold', minCellHeight: 4 },
+          alternateRowStyles: { fillColor: [245, 249, 255] },
+          columnStyles: {
+            0: { cellWidth: 55 },
+            1: { cellWidth: 15 },
+            2: { cellWidth: 50 },
+            3: { cellWidth: 32 },
+            4: { cellWidth: 25 },
+          },
+          didDrawPage: (data) => {
+            const pgText = doc.internal.getCurrentPageInfo().pageNumber;
+            const pW = doc.internal.pageSize.getWidth();
+            const pH = doc.internal.pageSize.getHeight();
+
+            doc.setFontSize(13);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(24, 113, 185);
+            doc.text('Citas x Terminalista (Productividad)', margin, 18);
+
+            doc.setFontSize(10);
+            doc.setTextColor(80, 80, 80);
+            doc.text(`Mes: ${mesTerminalista}   |   Digitador: ${dig}`, margin, 25);
+
+            doc.setFontSize(8);
+            doc.setTextColor(150, 150, 150);
+            doc.text(`Total registros: ${filas.length}`, margin, 31);
+
+            doc.setDrawColor(24, 113, 185);
+            doc.setLineWidth(0.5);
+            doc.line(margin, 34, pW - margin, 34);
+
+            doc.setFontSize(7);
+            doc.setTextColor(150, 150, 150);
+            doc.text(`Página ${pgText}`, pW / 2, pH - 8, { align: 'center' });
+          },
+        });
+      });
+
+      // --- Página de Resumen Consolidado (Total General de todos los digitadores) ---
+      doc.addPage();
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(24, 113, 185);
+      doc.text('Resumen Consolidado - Todos los Digitadores', margin, 18);
+
+      doc.setFontSize(10);
+      doc.setTextColor(80, 80, 80);
+      doc.text(`Mes: ${mesTerminalista}   |   Gerecia Regional La Libertad`, margin, 25);
+
+      doc.setDrawColor(24, 113, 185);
+      doc.setLineWidth(0.5);
+      doc.line(margin, 29, pageW - margin, 29);
+
+      const conteoGlobal = {};
+      filteredTerminalista.forEach(r => {
+        const c = r.CENTRO || 'Sin Centro';
+        conteoGlobal[c] = (conteoGlobal[c] || 0) + 1;
+      });
+      const resumenGlobal = Object.entries(conteoGlobal)
+        .sort((a, b) => b[1] - a[1])
+        .map(([centro, total]) => [getCentroNombre(centro), total]);
+
+      autoTable(doc, {
+        startY: 33,
+        head: [['CENTRO DE SALUD', 'TOTAL CITAS']],
+        body: resumenGlobal,
+        foot: [['TOTAL GENERAL MES', filteredTerminalista.length]],
+        margin: { left: margin * 2.5, right: margin * 2.5 },
+        styles: { fontSize: 9, cellPadding: 2.5, valign: 'middle' },
+        headStyles: { fillColor: [24, 113, 185], textColor: 255, fontStyle: 'bold' },
+        footStyles: { fillColor: [24, 113, 185], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [245, 249, 255] },
+        columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 36, halign: 'center', fontStyle: 'bold' } },
+      });
+
+      const parts = mesTerminalista.includes('-') ? mesTerminalista.split('-') : mesTerminalista.split('/');
+      const anio = parts[0].length === 4 ? parts[0] : parts[1];
+      const mesNum = parts[0].length === 4 ? parts[1] : parts[0];
+      doc.save(`Consolidado_Terminalistas_${mesNum}_${anio}.pdf`);
+    } else {
+      crearPDF(selectedDigitador, filteredTerminalista);
     }
   };
 
@@ -565,11 +1125,12 @@ const App = () => {
         ESPECIALIDAD: item.ESPECIALIDAD,
         NOMBRES_Y_APELLIDOS: item.NOMBRES_Y_APELLIDOS,
         DNI: item.DNI,
-        ACTIVO: item.ACTIVO !== undefined ? item.ACTIVO : true
+        ACTIVO: item.ACTIVO !== undefined ? item.ACTIVO : true,
+        FOTO_URL: item.FOTO_URL || ''
       });
       setEditingId(item.ITEM);
     } else {
-      setForm({ ITEM: '', ESPECIALIDAD: '', NOMBRES_Y_APELLIDOS: '', DNI: '', ACTIVO: true });
+      setForm({ ITEM: '', ESPECIALIDAD: '', NOMBRES_Y_APELLIDOS: '', DNI: '', ACTIVO: true, FOTO_URL: '' });
       setEditingId(null);
     }
     setIsModalOpen(true);
@@ -596,6 +1157,60 @@ const App = () => {
       } catch (err) { alert("Error al eliminar"); }
     }
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="login-screen">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="login-card"
+        >
+          <img src={logoCerete} alt="CERETE" className="login-logo" />
+          <h1 className="login-title">Sistema de Gestión</h1>
+          <p className="login-subtitle">CENTRO REGIONAL DE TELEMEDICINA - RED ASISTENCIAL LA LIBERTAD</p>
+
+          <form onSubmit={handleLogin} className="space-y-2">
+            <div className="relative">
+              <input
+                type="password"
+                placeholder="Ingresar Clave..."
+                value={passwordInput}
+                onChange={(e) => {
+                  setPasswordInput(e.target.value);
+                  if (loginError) setLoginError(false);
+                }}
+                className={`login-input ${loginError ? 'error' : ''}`}
+                autoFocus
+              />
+              <AnimatePresence>
+                {loginError && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="text-red-500 text-[10px] font-black uppercase mb-4 tracking-widest text-center"
+                  >
+                    Clave incorrecta. Intente de nuevo.
+                  </motion.p>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <button type="submit" className="login-btn">
+              Acceder al Sistema
+            </button>
+          </form>
+
+          <div className="login-footer">
+            <Hospital size={14} strokeWidth={2.5} />
+            <span>AMALVIVA — 2026</span>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className={`app-container ${!isSidebarOpen ? 'sidebar-collapsed' : ''}`}>
@@ -647,6 +1262,7 @@ const App = () => {
           <button onClick={() => setActiveTab('dashboard')} className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}><LayoutDashboard size={20} /> <span>Dashboard</span></button>
           <button onClick={() => setActiveTab('crud')} className={`nav-item ${activeTab === 'crud' ? 'active' : ''}`}><Users size={20} /> <span>Especialistas</span></button>
           <button onClick={() => setActiveTab('process')} className={`nav-item ${activeTab === 'process' ? 'active' : ''}`}><Filter size={20} /> <span>Consolidación</span></button>
+          <button onClick={() => setActiveTab('monitoreo-hoy')} className={`nav-item ${activeTab === 'monitoreo-hoy' ? 'active' : ''}`}><Activity size={20} /> <span>Monitoreo Hoy</span></button>
           <button onClick={() => setActiveTab('reports')} className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`}><BarChart3 size={20} /> <span>Monitoreo</span></button>
           <button
             onClick={() => {
@@ -655,9 +1271,23 @@ const App = () => {
             }}
             className={`nav-item ${activeTab === 'reportes' ? 'active' : ''}`}
           ><FileText size={20} /> <span>Reportes</span></button>
+          <button
+            onClick={() => {
+              setActiveTab('terminalistas');
+              if (terminalistaData.length === 0) fetchMesesTerminalista();
+            }}
+            className={`nav-item ${activeTab === 'terminalistas' ? 'active' : ''}`}
+          ><Users size={20} /> <span>Terminalistas</span></button>
         </nav>
 
-        <div className="mt-auto flex justify-center pb-6">
+        <div className="mt-auto flex flex-col items-center gap-2 pb-6">
+          <button
+            onClick={toggleFullScreen}
+            className="p-2.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-all duration-300"
+            title={isFullscreen ? "Salir de Pantalla Completa" : "Pantalla Completa"}
+          >
+            {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+          </button>
           <button
             onClick={() => setShowAuthorship(true)}
             className="p-2.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-all duration-300 group relative"
@@ -665,6 +1295,18 @@ const App = () => {
           >
             <Copyright size={20} className="group-hover:rotate-12 transition-transform" />
             <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full border-2 border-white animate-pulse"></div>
+          </button>
+          <button
+            onClick={() => {
+              if (confirm("¿Desea cerrar la sesión del sistema?")) {
+                setIsAuthenticated(false);
+                sessionStorage.removeItem('auth_cerete');
+              }
+            }}
+            className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all duration-300"
+            title="Cerrar Sesión"
+          >
+            <LogOut size={20} />
           </button>
         </div>
       </aside>
@@ -717,10 +1359,13 @@ const App = () => {
                     <div className="prof-header">
                       <div className="prof-avatar-container" style={{ cursor: 'pointer' }} onClick={() => setSelectedProfCalendar(prof)} title="Ver calendario del mes">
                         <img
-                          src={`/${prof.dni}.png`}
+                          src={prof.fotoUrl || (prof.dni ? `/fotos/${prof.dni}.png` : `https://i.pravatar.cc/150?u=${prof.name}`)}
                           alt={prof.name}
                           className="prof-avatar"
-                          onError={(e) => { e.target.onerror = null; e.target.src = `https://i.pravatar.cc/150?u=${prof.name}`; }}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = `https://i.pravatar.cc/150?u=${encodeURIComponent(prof.name)}`;
+                          }}
                           style={{ transition: 'transform 0.2s', }}
                           onMouseEnter={e => e.target.style.transform = 'scale(1.08)'}
                           onMouseLeave={e => e.target.style.transform = 'scale(1)'}
@@ -741,13 +1386,14 @@ const App = () => {
                             <th className="text-center">T</th>
                             <th className="text-center">P</th>
                             <th className="text-center">C</th>
+                            <th className="text-center">A</th>
                           </tr>
                         </thead>
                         <tbody>
                           {prof.assignments.map((as, aIdx) => (
                             <tr key={aIdx}>
-                              <td className="font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]" title={as.centro}>
-                                {as.centro}
+                              <td className="font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]" title={getCentroNombre(as.centro)}>
+                                {getCentroNombre(as.centro)}
                               </td>
                               <td className="text-center">
                                 <span className="as-badge-turno" title={as.turno}>
@@ -760,6 +1406,7 @@ const App = () => {
                               </td>
                               <td className="text-center as-val-pro">{as.pro}</td>
                               <td className="text-center as-val-cit">{as.cit}</td>
+                              <td className="text-center as-val-ate">{as.ate}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -807,6 +1454,179 @@ const App = () => {
 
         )}
 
+        {activeTab === 'monitoreo-hoy' && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 pb-20">
+            {/* ENCABEZADO MONITOREO */}
+            <div className="db-banner !py-6">
+              <div className="relative z-10 flex items-center justify-between flex-wrap gap-4">
+                <div className="text-center flex-1">
+                  <h1 className="db-title">MONITOREO DE ACTIVIDAD MENSUAL</h1>
+                  <p className="text-blue-50 font-black text-2xl opacity-90 tracking-tight">
+                    {new Date(dashboardDate + 'T12:00:00').toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })
+                      .toUpperCase()}
+                  </p>
+                  <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest mt-1">Tendencia Diaria de Citados y Atendidos</p>
+                </div>
+                {/* Selector de Mes (usando input date por simplicidad pero solo cambia el mes) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.15)', borderRadius: '10px', padding: '8px 14px', backdropFilter: 'blur(8px)' }}>
+                  <Calendar size={16} color="white" />
+                  <input
+                    type="month"
+                    value={dashboardDate.slice(0, 7)}
+                    onChange={e => setDashboardDate(e.target.value + "-01")}
+                    style={{
+                      background: 'transparent', border: 'none', color: 'white',
+                      fontWeight: 800, fontSize: '13px', cursor: 'pointer', outline: 'none',
+                      colorScheme: 'dark'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+
+            <div className="glass-card !bg-white !p-10 max-w-7xl mx-auto shadow-2xl border-slate-200" style={{ minHeight: '650px' }}>
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h4 className="text-slate-800 font-black uppercase tracking-widest text-sm">Trend de Citas vs Atenciones</h4>
+                  <p className="text-slate-400 text-[10px] font-bold">Resumen consolidado por día del mes seleccionado</p>
+                </div>
+                <div className="flex gap-6 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-slate-200"></div>
+                    <span className="text-[10px] font-black text-slate-500 uppercase">Citados</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-[#1871B9]"></div>
+                    <span className="text-[10px] font-black text-slate-500 uppercase">Atendidos</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Distribución Horizontal - Alineación Derecha (Mini Tarjetas 3.2cm) */}
+              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: '24px', marginBottom: '30px' }}>
+                <motion.div 
+                  whileHover={{ y: -3, boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                  className="bg-white border border-slate-200 rounded-xl flex flex-col justify-center px-4 relative overflow-hidden transition-all shadow-sm"
+                  style={{ width: '3.2cm', height: '2.2cm', borderLeft: '6px solid #10B981' }}
+                >
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">CITADOS</span>
+                  <div className="flex items-baseline gap-1">
+                    <h3 className="text-2xl font-black text-slate-800 leading-none tabular-nums">{monitoreoTotals.cit}</h3>
+                  </div>
+                  <div className="absolute right-1 bottom-1 text-emerald-500/10 rotate-12">
+                    <CheckCircle2 size={32} />
+                  </div>
+                </motion.div>
+
+                <motion.div 
+                  whileHover={{ y: -3, boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                  className="bg-white border border-slate-200 rounded-xl flex flex-col justify-center px-4 relative overflow-hidden transition-all shadow-sm"
+                  style={{ width: '3.2cm', height: '2.2cm', borderLeft: '6px solid #1871B9' }}
+                >
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">ATENDIDOS</span>
+                  <div className="flex flex-col">
+                    <h3 className="text-2xl font-black text-slate-800 leading-none tabular-nums mb-1">{monitoreoTotals.ate}</h3>
+                    <span className="text-[10px] font-black text-white bg-[#1871B9] px-1.5 py-0.5 rounded-md inline-block self-start shadow-sm">
+                      {monitoreoTotals.cit > 0 ? Math.round((monitoreoTotals.ate / monitoreoTotals.cit) * 100) : 0}%
+                    </span>
+                  </div>
+                  <div className="absolute right-1 bottom-1 text-[#1871B9]/10 rotate-12">
+                    <Activity size={32} />
+                  </div>
+                </motion.div>
+              </div>
+
+              <div style={{ width: '100%', height: '420px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={monitoreoDailyData}
+                    margin={{ top: 20, right: 30, left: 10, bottom: 20 }}
+                    barGap={-40}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="day" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 11, fontWeight: 900, fill: '#64748B' }} 
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 11, fontWeight: 900, fill: '#64748B' }} 
+                    />
+                    <Tooltip 
+                      cursor={{ fill: '#f1f5f9' }}
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-white p-5 rounded-2xl border-none shadow-[0_20px_50px_rgba(0,0,0,0.15)] min-w-[180px]">
+                              <p className="text-xs font-black text-slate-800 uppercase mb-3 border-b pb-2">Día {data.day}</p>
+                              <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] font-bold text-slate-400">CITADOS</span>
+                                  <span className="text-xs font-black text-slate-700">{data.cit}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] font-bold text-slate-400">ATENDIDOS</span>
+                                  <span className="text-xs font-black text-[#1871B9]">{data.ate}</span>
+                                </div>
+                                <div className="mt-3 bg-slate-50 p-2 rounded-lg">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-black text-slate-500">EFECTIVIDAD</span>
+                                    <span className="text-xs font-black text-emerald-600">{data.porcentaje}%</span>
+                                  </div>
+                                  <div className="w-full bg-slate-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                                    <div className="bg-emerald-500 h-full" style={{ width: `${data.porcentaje}%` }}></div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Bar 
+                      dataKey="cit" 
+                      fill="#e2e8f0" 
+                      radius={[6, 6, 0, 0]} 
+                      barSize={40}
+                    />
+                    <Bar 
+                      dataKey="ate" 
+                      fill="#1871B9" 
+                      radius={[6, 6, 0, 0]} 
+                      barSize={40}
+                    >
+                      <LabelList 
+                        dataKey="porcentaje" 
+                        position="top" 
+                        content={(props) => {
+                          const { x, y, width, value } = props;
+                          if (value === 0) return null;
+                          return (
+                            <text x={x + width / 2} y={y - 12} fill="#1871B9" fontSize={11} fontWeight={900} textAnchor="middle">
+                              {value}%
+                            </text>
+                          );
+                        }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-6 flex justify-center">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-full">
+                  Visualizando Resumen Mensual de Atenciones por Día
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {activeTab === 'crud' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             <header className="flex justify-between items-end mb-10">
@@ -848,8 +1668,12 @@ const App = () => {
                     >
                       <div className="card-top">
                         <div className="avatar-container">
-                          <div className="specialist-avatar">
-                            {item.NOMBRES_Y_APELLIDOS.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                          <div className="specialist-avatar" style={{ padding: 0, overflow: 'hidden' }}>
+                            {item.FOTO_URL ? (
+                              <img src={item.FOTO_URL} alt={item.NOMBRES_Y_APELLIDOS} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              item.NOMBRES_Y_APELLIDOS.split(' ').map(n => n[0]).slice(0, 2).join('')
+                            )}
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <span className="item-id-badge">ID #{item.ITEM}</span>
@@ -896,7 +1720,8 @@ const App = () => {
             <div className="tab-container flex mb-8">
               {[
                 { id: 'horas', icon: Database, label: 'Horas Efectivas' },
-                { id: 'citados', icon: FileText, label: 'Citados' }
+                { id: 'citados', icon: FileText, label: 'Citados' },
+                { id: 'terminalistas', icon: Users, label: 'Citas x Terminalista' }
               ].map(tab => (
                 <motion.button
                   key={tab.id}
@@ -912,30 +1737,20 @@ const App = () => {
 
             {/* Horas Efectivas */}
             {activeProcess === 'horas' && (
-              <div className="grid grid-cols-2 gap-6">
-                <div className="glass-card p-8">
-                  <div className="w-12 h-12 bg-blue-600/10 text-blue-500 rounded-xl flex items-center justify-center mx-auto mb-6"><Database size={24} /></div>
-                  <h4 className="text-lg font-black mb-2">1. Unificado</h4>
-                  <p className="text-slate-500 text-xs mb-8">Une archivos TXT de <strong>Horas Efectivas</strong> en un solo JSON maestro.</p>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                    onClick={handleImportTxt} disabled={importing}
-                    className="btn-primary w-full justify-center"
-                  >
-                    {importing ? 'Sincronizando...' : 'Generar Unificado'}
-                  </motion.button>
+              <div className="glass-card p-12 text-center bg-white/50 backdrop-blur-md border-dashed border-2 border-[#1871B9]/20">
+                <div className="w-20 h-20 bg-[#1871B9]/10 text-[#1871B9] rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
+                  <Hospital size={40} />
                 </div>
-                <div className="glass-card p-8">
-                  <div className="w-12 h-12 bg-emerald-600/10 text-emerald-500 rounded-xl flex items-center justify-center mx-auto mb-6"><Play size={24} /></div>
-                  <h4 className="text-lg font-black mb-2">2. Sincronizar</h4>
-                  <p className="text-slate-500 text-xs mb-8">Cruza datos unificados con especialistas activos.</p>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                    onClick={handleProcess} disabled={processing}
-                    className="btn-primary btn-emerald w-full justify-center"
-                  >
-                    {processing ? 'Procesando...' : 'Ejecutar Cruce'}
-                  </motion.button>
+                <h4 className="text-2xl font-black text-slate-800 mb-4">Sincronización de Horas Efectivas</h4>
+                <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
+                  Los datos de programación y horas efectivas se cargan automáticamente desde el archivo maestro
+                  <strong className="text-[#1871B9] mx-1">especialidades_horas.json</strong> ubicado en la carpeta
+                  <span className="bg-slate-100 px-2 py-1 rounded font-mono text-xs ml-1 border border-slate-200">/Horas Efectivas</span>.
+                </p>
+                <div className="mt-8 flex justify-center gap-4">
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-100">
+                    <CheckCircle2 size={14} /> MODO LECTURA DIRECTA ACTIVO
+                  </div>
                 </div>
               </div>
             )}
@@ -967,6 +1782,38 @@ const App = () => {
                     className="btn-primary w-full justify-center"
                   >
                     {processingCitados ? 'Procesando...' : 'Ejecutar Cruce'}
+                  </motion.button>
+                </div>
+              </div>
+            )}
+
+            {/* Terminalistas */}
+            {activeProcess === 'terminalistas' && (
+              <div className="grid grid-cols-2 gap-6">
+                <div className="glass-card p-8">
+                  <div className="w-12 h-12 bg-blue-600/10 text-blue-500 rounded-xl flex items-center justify-center mx-auto mb-6"><Database size={24} /></div>
+                  <h4 className="text-lg font-black mb-2">1. Unificado</h4>
+                  <p className="text-slate-500 text-xs mb-8">Une archivos TXT de <strong>Citas x Terminalista</strong> en un solo JSON maestro.</p>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                    onClick={handleImportTerminalista} disabled={importingTerminalista}
+                    style={{ background: 'linear-gradient(135deg, #1871B9, #0ea5e9)' }}
+                    className="btn-primary w-full justify-center"
+                  >
+                    {importingTerminalista ? 'Sincronizando...' : 'Generar Unificado'}
+                  </motion.button>
+                </div>
+                <div className="glass-card p-8">
+                  <div className="w-12 h-12 bg-emerald-600/10 text-emerald-500 rounded-xl flex items-center justify-center mx-auto mb-6"><Play size={24} /></div>
+                  <h4 className="text-lg font-black mb-2">2. Sincronizar</h4>
+                  <p className="text-slate-500 text-xs mb-8">Cruza datos con Digitadores por <strong>DOC_USUARIO</strong>.</p>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                    onClick={handleProcessTerminalista} disabled={processingTerminalista}
+                    style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                    className="btn-primary w-full justify-center"
+                  >
+                    {processingTerminalista ? 'Procesando...' : 'Ejecutar Cruce'}
                   </motion.button>
                 </div>
               </div>
@@ -1017,6 +1864,7 @@ const App = () => {
                       value={filters.mes}
                       onChange={e => setFilters({ ...filters, mes: e.target.value })}
                     >
+                      <option value="all">TODOS LOS PERIODOS</option>
                       {uniqueLists.meses.map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                   </div>
@@ -1046,7 +1894,7 @@ const App = () => {
                         onChange={e => setFilters({ ...filters, centro: e.target.value })}
                       >
                         <option value="all">TODOS LOS CENTROS</option>
-                        {uniqueLists.centros.map(c => <option key={c} value={c}>{c}</option>)}
+                        {uniqueLists.centros.map(c => <option key={c} value={c}>{getCentroNombre(c)}</option>)}
                       </select>
                     )}
                   </div>
@@ -1087,7 +1935,7 @@ const App = () => {
                               <span className="truncate font-black text-[#1871B9] text-sm tracking-tight">{row.name}</span>
                             </div>
                           </td>
-                          <td className="cell-total text-center font-black">{row.total}</td>
+                          <td className="cell-total font-black" style={{ textAlign: 'center' }}>{row.total}</td>
                           {currentReportData.headers.map((h, hIdx) => {
                             let valDisplay = '';
                             let isWarning = false;
@@ -1117,18 +1965,19 @@ const App = () => {
                             <td className="sticky-col px-6 py-1 italic border-r border-white/5">
                               {activeReport === 'matrix' ? (
                                 <div className="flex flex-col">
-                                  <span className="text-[10px] font-bold text-slate-700">{child.center}</span>
+                                  <span className="text-[10px] font-bold text-slate-700">{getCentroNombre(child.center)}</span>
                                   <span className="text-[8px] font-black text-[#F15A24] uppercase tracking-tighter">Turno: {child.turno}</span>
                                 </div>
                               ) : (
-                                <span className="text-[10px] font-black text-slate-500">{child.name || child.center}</span>
+                                <span className="text-[10px] font-black text-slate-500">{getCentroNombre(child.name || child.center)}</span>
                               )}
                             </td>
-                            <td className="cell-total border-r border-white/5 text-center text-[10px] font-bold">
+                            <td className="cell-total border-r border-white/5 text-[10px] font-bold" style={{ textAlign: 'center' }}>
                               {activeReport === 'month' ? child.total : (activeReport === 'production' ? child.total : '')}
                             </td>
                             {currentReportData.headers.map((h, hIdx) => {
                               const valRaw = activeReport === 'production' ? (child.dayValues[h.key] || 0) : (child.dayValues[h] || 0);
+
                               let cellClass = `cell-data ${valRaw > 0 ? (activeReport === 'matrix' ? 'opacity-100 font-bold' : 'opacity-100 font-bold') : 'opacity-20'}`;
                               let inlineStyle = {};
 
@@ -1156,8 +2005,75 @@ const App = () => {
                     );
                   })}
                 </tbody>
+                {(activeReport === 'production' || activeReport === 'matrix' || activeReport === 'month') && (
+                  <tfoot className="sticky-footer" style={{ position: 'sticky', bottom: 0, zIndex: 30 }}>
+                    <tr style={{ backgroundColor: '#1871B9', color: 'white', fontWeight: '900', fontSize: '13px' }}>
+                      <td className="sticky-col px-4 py-2 border-t-2 border-white/20 uppercase" style={{ backgroundColor: '#1871B9', textAlign: 'center' }}>
+                        TOTAL {activeReport === 'production' ? 'PRODUCCIÓN' : (activeReport === 'matrix' ? 'MATRIZ' : 'PROGRAMACIÓN')}
+                      </td>
+                      <td style={{ textAlign: 'center', padding: '8px 0', borderTop: '2px solid rgba(255,255,255,0.2)' }}>
+                        {currentReportData.rows.reduce((acc, row) => acc + row.total, 0)}
+                      </td>
+                      {currentReportData.headers.map((h, hIdx) => {
+                        const totalCol = currentReportData.rows.reduce((acc, row) => {
+                          let valRow = 0;
+                          if (activeReport === 'production') {
+                            valRow = row.children.reduce((sum, c) => sum + (c.dayValues[h.key] || 0), 0);
+                          } else if (activeReport === 'matrix') {
+                            valRow = row.children.reduce((sum, c) => sum + (c.dayValues[h] || 0), 0);
+                          } else if (activeReport === 'month') {
+                            valRow = row.children.filter(c => c.type === 'PRO').reduce((sum, c) => sum + (c.dayValues[h] || 0), 0);
+                          }
+                          return acc + valRow;
+                        }, 0);
+                        return (
+                          <td key={hIdx} style={{ textAlign: 'center', padding: '8px 0', borderTop: '2px solid rgba(255,255,255,0.2)' }}>
+                            {totalCol || ''}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tfoot>
+                )}
+
               </table>
             </div>
+
+
+            {activeReport === 'production' && currentReportData.rows.length > 0 && (
+              <div className="mt-8 mb-12 p-8 glass-card" style={{ minHeight: '450px' }}>
+                <h4 className="text-slate-500 text-[11px] font-black uppercase tracking-[0.2em] mb-10 text-center">Tendencia de Producción Mensual</h4>
+                <div style={{ height: '350px', width: '100%' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={currentReportData.headers.map(h => {
+                        let monthlyTotal = 0;
+                        currentReportData.rows.forEach(row => {
+                          const valForMonth = row.children.reduce((sum, child) => sum + (child.dayValues[h.key] || 0), 0);
+                          monthlyTotal += valForMonth;
+                        });
+                        return { month: h.label, total: monthlyTotal };
+                      })}
+                      margin={{ top: 40, right: 30, left: 0, bottom: 20 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 800, fill: '#64748B' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 800, fill: '#64748B' }} />
+                      <Tooltip
+                        cursor={{ fill: '#f8fafc', opacity: 0.8 }}
+                        contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: '900', padding: '12px' }}
+                      />
+                      <Bar dataKey="total" name="Producción Total" fill="#1871B9" radius={[8, 8, 0, 0]} barSize={60}>
+                        <LabelList dataKey="total" position="top" style={{ fontSize: '13px', fontWeight: 900, fill: '#1d4ed8' }} offset={15} />
+                        {currentReportData.headers.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#1871B9' : '#10B981'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
 
             {activeReport === 'matrix' && (
               <div className="flex items-center gap-4 mt-4 p-4 bg-red-50 border border-red-100 rounded-xl">
@@ -1300,70 +2216,175 @@ const App = () => {
                       boxShadow: filteredCitados.length === 0 ? 'none' : '0 4px 12px rgba(220,38,38,0.3)',
                     }}
                   >
-                    <FileText size={14} />
-                    {selectedProfCitados === 'all' ? 'PDF por profesional' : 'Generar PDF'}
+                    <FileText size={14} /> EXPORTAR PDF
                   </motion.button>
                 </div>
               </header>
 
-              {/* SPINNER o GRILLA */}
-              {loadingCitados ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 20px', gap: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', border: '4px solid #E2E8F0', borderTop: '4px solid #1871B9', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                  <p style={{ color: '#94A3B8', fontWeight: 700, fontSize: '13px' }}>Cargando datos de citados...</p>
-                </div>
-              ) : (
-                <div style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid #E2E8F0', background: 'white', maxHeight: 'calc(100vh - 220px)', overflowY: 'auto', boxShadow: '0 4px 6px rgba(0,0,0,0.04)' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                    <thead>
-                      <tr>
-                        {COLS.map(col => (
-                          <th key={col.key} style={{ background: '#F8FAFC', color: '#1871B9', padding: '10px 12px', fontWeight: 800, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.07em', borderBottom: '2px solid #E2E8F0', position: 'sticky', top: 0, zIndex: 10, whiteSpace: 'nowrap', textAlign: 'left' }}>
-                            {col.label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredCitados.length === 0 ? (
-                        <tr>
-                          <td colSpan={COLS.length} style={{ textAlign: 'center', padding: '60px 20px', color: '#94A3B8', fontWeight: 700 }}>
-                            Sin datos. Ejecuta primero el proceso de Citados en Consolidación.
-                          </td>
-                        </tr>
-                      ) : filteredCitados.map((row, i) => (
-                        <tr key={i} style={{ backgroundColor: i % 2 === 0 ? 'white' : '#F8FAFC', borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}
-                          onMouseEnter={e => e.currentTarget.style.backgroundColor = '#EFF6FF'}
-                          onMouseLeave={e => e.currentTarget.style.backgroundColor = i % 2 === 0 ? 'white' : '#F8FAFC'}
-                        >
-                          {COLS.map(col => (
-                            <td key={col.key} style={{ padding: '8px 12px', color: '#374151', fontWeight: col.key === 'ESTADO_CITA' ? 800 : 500, whiteSpace: 'nowrap', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {col.key === 'ESTADO_CITA' ? (
-                                <span style={{
-                                  padding: '2px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: 800,
-                                  background: row[col.key] === 'ATENDIDA' ? '#D1FAE5' : row[col.key] === 'PENDIENTE' ? '#FEF3C7' : '#FEE2E2',
-                                  color: row[col.key] === 'ATENDIDA' ? '#065F46' : row[col.key] === 'PENDIENTE' ? '#92400E' : '#991B1B'
-                                }}>{row[col.key] || '—'}</span>
-                              ) : col.key === 'ULTCIE10ATEN' ? (
-                                <span style={{ fontWeight: 700, color: '#1871B9', fontFamily: 'monospace' }}>
-                                  {row[col.key] ? row[col.key].split(' - ')[0].trim() : '—'}
-                                </span>
-                              ) : (row[col.key] || '—')}
+              <div className="glass-card !p-0 overflow-hidden" style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' }}>
+                <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#F8FAFC' }}>
+                    <tr>
+                      {COLS.map(col => (
+                        <th key={col.key} style={{ padding: '12px 16px', fontSize: '10px', fontWeight: 900, color: '#64748B', textTransform: 'uppercase', borderBottom: '2px solid #E2E8F0' }}>{col.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadingCitados ? (
+                      <tr><td colSpan={COLS.length} style={{ padding: '40px', textAlign: 'center', color: '#94A3B8', fontWeight: 700 }}>Cargando datos de citados...</td></tr>
+                    ) : filteredCitados.length > 0 ? (
+                      filteredCitados.map((reg, idx) => (
+                        <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : '#F8FAFC', transition: 'background 0.2s' }}>
+                          {COLS.map((col, cIdx) => (
+                            <td key={cIdx} style={{ padding: '10px 16px', fontSize: '11px', fontWeight: 600, color: '#334155', borderBottom: '1px solid #F1F5F9' }}>
+                              {col.key === 'ULTCIE10ATEN' ? (reg[col.key] || '').split(' - ')[0] : (col.key === 'CENTRO' ? getCentroNombre(reg[col.key]) : reg[col.key])}
                             </td>
                           ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      ))
+                    ) : (
+                      <tr><td colSpan={COLS.length} style={{ padding: '40px', textAlign: 'center', color: '#94A3B8', fontWeight: 700 }}>No se encontraron registros de atenciones para este mes.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          );
+        })()}
+
+        {activeTab === 'terminalistas' && (() => {
+          const COLS = [
+            { key: 'CENTRO', label: 'Centro' },
+            { key: 'DESC_SERVICIO', label: 'Servicio' },
+            { key: 'FECHOR_REGISTRO', label: 'Fecha Registro' },
+            { key: 'SUBACTIVIDAD', label: 'Actividad' },
+            { key: 'TIPO_CITA', label: 'Tipo Cita' },
+            { key: 'TIPO_PACIENTE', label: 'Paciente' },
+          ];
+          return (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: 'white', padding: '14px 20px', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#1871B9', margin: 0, lineHeight: 1.2 }}>Citas x Terminalista</h2>
+                  <p style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 }}>Productividad de Digitadores — Detalle de Citas</p>
                 </div>
-              )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  {mesesTerminalista.length > 0 && (
+                    <>
+                      <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>Mes:</label>
+                      <select
+                        className="select-periodo"
+                        value={mesTerminalista}
+                        onChange={e => {
+                          setMesTerminalista(e.target.value);
+                          setTerminalistaData([]);
+                          fetchTerminalistaData(e.target.value);
+                        }}
+                        style={{ minWidth: '130px' }}
+                      >
+                        {mesesTerminalista.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                      <div style={{ width: '1px', height: '24px', background: '#E2E8F0' }} />
+                    </>
+                  )}
+                  <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>Digitador:</label>
+                  <select
+                    className="select-periodo"
+                    value={selectedDigitador}
+                    onChange={e => setSelectedDigitador(e.target.value)}
+                    style={{ minWidth: '200px' }}
+                  >
+                    <option value="all">— TODOS —</option>
+                    {digitadoresList.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  <div style={{ width: '1px', height: '24px', background: '#E2E8F0' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Calendar size={14} color="#1871B9" />
+                    <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>Desde:</label>
+                    <input
+                      type="date"
+                      value={fechaDesde}
+                      onChange={e => setFechaDesde(e.target.value)}
+                      style={{ border: '1px solid #CBD5E1', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', fontWeight: 700, color: '#1871B9', cursor: 'pointer', outline: 'none' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Calendar size={14} color="#1871B9" />
+                    <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>Hasta:</label>
+                    <input
+                      type="date"
+                      value={fechaHasta}
+                      onChange={e => setFechaHasta(e.target.value)}
+                      style={{ border: '1px solid #CBD5E1', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', fontWeight: 700, color: '#1871B9', cursor: 'pointer', outline: 'none' }}
+                    />
+                  </div>
+                  {(fechaDesde || fechaHasta) && (
+                    <button onClick={() => { setFechaDesde(''); setFechaHasta(''); }} style={{ fontSize: '11px', fontWeight: 800, color: '#EF4444', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer' }}>✕ Limpiar</button>
+                  )}
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#1871B9', background: '#EFF6FF', padding: '4px 12px', borderRadius: '20px' }}>
+                    {filteredTerminalista.length} registros
+                  </span>
+                  <div style={{ width: '1px', height: '24px', background: '#E2E8F0' }} />
+                  <motion.button
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
+                    onClick={generarPDFTerminalista}
+                    disabled={filteredTerminalista.length === 0}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      background: filteredTerminalista.length === 0 ? '#E2E8F0' : 'linear-gradient(135deg,#1871B9,#0ea5e9)',
+                      color: filteredTerminalista.length === 0 ? '#94A3B8' : 'white',
+                      border: 'none', borderRadius: '8px',
+                      padding: '7px 14px', fontWeight: 800, fontSize: '12px',
+                      cursor: filteredTerminalista.length === 0 ? 'not-allowed' : 'pointer',
+                      boxShadow: filteredTerminalista.length === 0 ? 'none' : '0 4px 12px rgba(24,113,185,0.3)',
+                    }}
+                  >
+                    <FileText size={14} /> EXPORTAR PDF
+                  </motion.button>
+                </div>
+              </header>
+
+              <div className="glass-card !p-0 overflow-hidden" style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' }}>
+                <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#F8FAFC' }}>
+                    <tr>
+                      {COLS.map(col => (
+                        <th key={col.key} style={{ padding: '12px 16px', fontSize: '10px', fontWeight: 900, color: '#64748B', textTransform: 'uppercase', borderBottom: '2px solid #E2E8F0' }}>{col.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadingTerminalista ? (
+                      <tr><td colSpan={COLS.length} style={{ padding: '40px', textAlign: 'center', color: '#94A3B8', fontWeight: 700 }}>Cargando datos de terminalistas...</td></tr>
+                    ) : filteredTerminalista.length > 0 ? (
+                      filteredTerminalista.map((reg, idx) => (
+                        <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : '#F8FAFC', transition: 'background 0.2s' }}>
+                          {COLS.map(col => (
+                            <td key={col.key} style={{ padding: '10px 16px', fontSize: '11px', fontWeight: 600, color: '#334155', borderBottom: '1px solid #F1F5F9' }}>
+                              {col.key === 'CENTRO' ? getCentroNombre(reg[col.key]) : reg[col.key]}
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={COLS.length} style={{ padding: '40px', textAlign: 'center', color: '#94A3B8', fontWeight: 700 }}>No se encontraron registros para los filtros aplicados.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </motion.div>
           );
         })()}
       </main>
 
       {/* FORM MODAL - FORCED INLINE STYLES FOR LAYOUT */}
-      <AnimatePresence>
+      < AnimatePresence >
         {isModalOpen && (
           <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="glass-card w-[480px] !p-10 shadow-2xl border-white/20" style={{ position: 'relative' }}>
@@ -1414,6 +2435,16 @@ const App = () => {
                   </select>
                 </div>
 
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 ml-1">URL de la Foto (Opcional)</label>
+                  <input
+                    className="input-field"
+                    placeholder="https://ejemplo.com/foto.jpg"
+                    value={form.FOTO_URL}
+                    onChange={e => setForm({ ...form, FOTO_URL: e.target.value })}
+                  />
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', paddingTop: '16px' }}>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
@@ -1437,129 +2468,131 @@ const App = () => {
             </motion.div>
           </div>
         )}
-        {showAuthorship && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowAuthorship(false)}
-              style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(10px)' }}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              style={{
-                position: 'relative',
-                width: '100%',
-                maxWidth: '420px',
-                backgroundColor: 'white',
-                borderRadius: '24px',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                overflow: 'hidden',
-                border: '1px solid rgba(255, 255, 255, 0.5)'
-              }}
-            >
-              {/* Cabecera Decorativa con Estilo Inline */}
-              <div style={{
-                height: '100px',
-                background: 'linear-gradient(135deg, #1871B9 0%, #0c4a6e 100%)',
-                padding: '24px',
-                display: 'flex',
-                alignItems: 'flex-start',
-                justifyContent: 'space-between'
-              }}>
-                <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', padding: '10px', borderRadius: '12px', backdropFilter: 'blur(4px)' }}>
-                  <Copyright style={{ color: 'white' }} size={24} />
-                </div>
-                <button
-                  onClick={() => setShowAuthorship(false)}
-                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', border: 'none', borderRadius: '50%', padding: '8px', cursor: 'pointer', display: 'flex' }}
-                >
-                  <X style={{ color: 'white' }} size={20} />
-                </button>
-              </div>
-
-              <div style={{ padding: '32px', marginTop: '-40px' }}>
-                <div style={{
+        {
+          showAuthorship && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowAuthorship(false)}
+                style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(10px)' }}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  maxWidth: '420px',
                   backgroundColor: 'white',
-                  borderRadius: '16px',
+                  borderRadius: '24px',
+                  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                  overflow: 'hidden',
+                  border: '1px solid rgba(255, 255, 255, 0.5)'
+                }}
+              >
+                {/* Cabecera Decorativa con Estilo Inline */}
+                <div style={{
+                  height: '100px',
+                  background: 'linear-gradient(135deg, #1871B9 0%, #0c4a6e 100%)',
                   padding: '24px',
-                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                  border: '1px solid #f8fafc'
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between'
                 }}>
-                  <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: '900', color: '#1e293b', letterSpacing: '-0.025em', margin: 0 }}>Autoría y Soporte</h2>
-                    <p style={{ color: '#64748b', fontSize: '0.875rem', fontWeight: '500', marginTop: '4px' }}>Panel de Especialistas Programados</p>
+                  <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', padding: '10px', borderRadius: '12px', backdropFilter: 'blur(4px)' }}>
+                    <Copyright style={{ color: 'white' }} size={24} />
                   </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '12px', borderRadius: '12px', transition: 'background-color 0.2s' }}>
-                      <div style={{ backgroundColor: '#f0f9ff', padding: '10px', borderRadius: '12px', color: '#1871B9' }}>
-                        <Hospital size={18} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: '10px', fontWeight: '900', color: '#1871B9', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 2px 0' }}>Coordinador CERETE</p>
-                        <p style={{ fontSize: '14px', fontWeight: '700', color: '#334155', margin: 0 }}>Dr. Diego Cabanillas</p>
-                        <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', wordBreak: 'break-all' }}>diego.cabanillas@essalud.gob.pe</p>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '12px', borderRadius: '12px' }}>
-                      <div style={{ backgroundColor: '#f5f3ff', padding: '10px', borderRadius: '12px', color: '#7c3aed' }}>
-                        <Database size={18} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: '10px', fontWeight: '900', color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 2px 0' }}>Ingeniero de Sistemas</p>
-                        <p style={{ fontSize: '14px', fontWeight: '700', color: '#334155', margin: 0 }}>Amaro Vilela Vargas</p>
-                        <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', wordBreak: 'break-all' }}>amaro.vilela@essalud.gob.pe</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{
-                        width: '8px',
-                        height: '8px',
-                        backgroundColor: '#10b981',
-                        borderRadius: '50%',
-                        boxShadow: '0 0 8px rgba(16, 185, 129, 0.4)'
-                      }}></div>
-                      <span style={{ fontSize: '10px', fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>SOPORTE INFORMÁTICO RALL</span>
-                    </div>
-                    <span style={{ fontSize: '10px', fontWeight: '700', color: '#cbd5e1' }}>v2.4.0</span>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'center' }}>
                   <button
                     onClick={() => setShowAuthorship(false)}
-                    style={{
-                      padding: '12px 32px',
-                      backgroundColor: '#1e293b',
-                      color: 'white',
-                      fontSize: '11px',
-                      fontWeight: '800',
-                      borderRadius: '12px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                      transition: 'all 0.2s'
-                    }}
+                    style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', border: 'none', borderRadius: '50%', padding: '8px', cursor: 'pointer', display: 'flex' }}
                   >
-                    CONTINUAR
+                    <X style={{ color: 'white' }} size={20} />
                   </button>
                 </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+
+                <div style={{ padding: '32px', marginTop: '-40px' }}>
+                  <div style={{
+                    backgroundColor: 'white',
+                    borderRadius: '16px',
+                    padding: '24px',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                    border: '1px solid #f8fafc'
+                  }}>
+                    <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                      <h2 style={{ fontSize: '1.25rem', fontWeight: '900', color: '#1e293b', letterSpacing: '-0.025em', margin: 0 }}>Autoría y Soporte</h2>
+                      <p style={{ color: '#64748b', fontSize: '0.875rem', fontWeight: '500', marginTop: '4px' }}>Panel de Especialistas Programados</p>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '12px', borderRadius: '12px', transition: 'background-color 0.2s' }}>
+                        <div style={{ backgroundColor: '#f0f9ff', padding: '10px', borderRadius: '12px', color: '#1871B9' }}>
+                          <Hospital size={18} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: '10px', fontWeight: '900', color: '#1871B9', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 2px 0' }}>Coordinador CERETE</p>
+                          <p style={{ fontSize: '14px', fontWeight: '700', color: '#334155', margin: 0 }}>Dr. Diego Cabanillas</p>
+                          <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', wordBreak: 'break-all' }}>diego.cabanillas@essalud.gob.pe</p>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '12px', borderRadius: '12px' }}>
+                        <div style={{ backgroundColor: '#f5f3ff', padding: '10px', borderRadius: '12px', color: '#7c3aed' }}>
+                          <Database size={18} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: '10px', fontWeight: '900', color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 2px 0' }}>Ingeniero de Sistemas</p>
+                          <p style={{ fontSize: '14px', fontWeight: '700', color: '#334155', margin: 0 }}>Amaro Vilela Vargas</p>
+                          <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', wordBreak: 'break-all' }}>amaro.vilela@essalud.gob.pe</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{
+                          width: '8px',
+                          height: '8px',
+                          backgroundColor: '#10b981',
+                          borderRadius: '50%',
+                          boxShadow: '0 0 8px rgba(16, 185, 129, 0.4)'
+                        }}></div>
+                        <span style={{ fontSize: '10px', fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>SOPORTE INFORMÁTICO RALL</span>
+                      </div>
+                      <span style={{ fontSize: '10px', fontWeight: '700', color: '#cbd5e1' }}>v2.4.0</span>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'center' }}>
+                    <button
+                      onClick={() => setShowAuthorship(false)}
+                      style={{
+                        padding: '12px 32px',
+                        backgroundColor: '#1e293b',
+                        color: 'white',
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        borderRadius: '12px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      CONTINUAR
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )
+        }
+      </AnimatePresence >
 
       {/* MODAL CALENDARIO DEL PROFESIONAL - REDISEÑO PREMIUM */}
-      <AnimatePresence>
+      < AnimatePresence >
         {selectedProfCalendar && (() => {
           const prof = selectedProfCalendar;
           const [dashY, dashM] = dashboardDate.split('-').map(Number);
@@ -1786,7 +2819,7 @@ const App = () => {
             </div>
           );
         })()}
-      </AnimatePresence>
+      </AnimatePresence >
     </div >
   );
 };

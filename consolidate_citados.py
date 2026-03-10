@@ -7,7 +7,7 @@ def consolidate_citados():
     Consolidates all .txt files from 'Citados' directory into a single JSON file.
     Expected format: Pipe-separated values (|) with a header on the first line.
     """
-    base_dir = r"c:\Users\ACER\.gemini\antigravity\scratch\Explota"
+    base_dir = r"d:\Web_Cerete\Amalviva\Explota"
     input_dir = os.path.join(base_dir, "Citados")
     output_file = os.path.join(base_dir, "consolidado_citados.json")
 
