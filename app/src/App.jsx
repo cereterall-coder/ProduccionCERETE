@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
   Users, Play, Plus, Trash2, Edit2, RefreshCw, Database,
@@ -58,6 +58,21 @@ const CENTROS_MAP = {
 };
 
 const getCentroNombre = (code) => CENTROS_MAP[String(code)] || code;
+
+const val = (v) => {
+  if (!v) return 0;
+  const num = parseInt(v);
+  return isNaN(num) ? 0 : num;
+};
+
+const normalizeName = (name) => {
+  if (!name) return "";
+  return name.toString().trim().toUpperCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Quitar acentos (Ó -> O)
+    .replace(/[^A-Z0-9 ]/g, " ") // Quitar caracteres raros como ├ô
+    .replace(/\s+/g, " ") // Colapsar espacios múltiples
+    .trim();
+};
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -330,11 +345,6 @@ const App = () => {
     } catch (err) { alert("Error en el cruce de Terminalistas."); } finally { setProcessingTerminalista(false); }
   };
 
-  const val = (v) => {
-    if (!v) return 0;
-    const num = parseInt(v);
-    return isNaN(num) ? 0 : num;
-  };
 
   const matrixData = useMemo(() => {
     if (!reportData.length || activeReport !== 'matrix') return { headers: [], rows: [] };
@@ -632,8 +642,23 @@ const App = () => {
       const [mA, yA] = a.split('/').map(Number);
       const [mB, yB] = b.split('/').map(Number);
       return yA !== yB ? yA - yB : mA - mB;
-    })
-  }), [reportData]);
+    }),
+    profesionalesActivos: [...new Set(reportData.map(d => d.PROFESIONAL).filter(Boolean))]
+      .filter(p => {
+        // Encontrar una entrada de reportData para obtener el DNI de este profesional
+        const sampleEntry = reportData.find(d => d.PROFESIONAL === p);
+        const dni = sampleEntry ? String(sampleEntry.DOC_PROFESIONAL || "").trim() : "";
+        
+        const masterInfo = especialidades.find(e => 
+          String(e.DNI || "").trim() === dni || normalizeName(e.NOMBRES_Y_APELLIDOS) === normalizeName(p)
+        );
+        
+        // Si no está en la maestra, lo mostramos por defecto.
+        // Solo lo ocultamos si masterInfo EXISTE y ACTIVO es estrictamente false.
+        return masterInfo ? masterInfo.ACTIVO !== false : true; 
+      })
+      .sort()
+  }), [reportData, especialidades]);
 
   // ── Reportes de Citados ──────────────────────────────────────────────────
   const parseDate = (str) => {
@@ -680,6 +705,297 @@ const App = () => {
       return true;
     });
   }, [terminalistaData, selectedDigitador, fechaDesde, fechaHasta]);
+
+
+  // ── Reportes de Programación (PDF) ──────────────────────────────────────────
+  const generarPDFProgramacionMes = (targetMes, targetProf = 'all') => {
+    try {
+      if (targetMes === 'all') {
+        alert("Por favor seleccione un mes.");
+        return;
+      }
+      
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 10;
+
+      const filtered = reportData.filter(d => {
+        if (!d.PERIODO) return false;
+        
+        // 1. Filtro de Mes
+        const parts = d.PERIODO.split('/');
+        const periodMatches = `${parts[1]}/${parts[2]}` === targetMes;
+        if (!periodMatches) return false;
+
+        // 2. Filtro de Activo (Por DNI)
+        const dni = String(d.DOC_PROFESIONAL || "").trim();
+        const masterInfo = especialidades.find(e => 
+          String(e.DNI || "").trim() === dni || normalizeName(e.NOMBRES_Y_APELLIDOS) === normalizeName(d.PROFESIONAL)
+        );
+        
+        // Permitir si no está en la maestra, o si está en la maestra y está activo.
+        const isActive = masterInfo ? masterInfo.ACTIVO !== false : true;
+        if (!isActive) return false;
+
+        // 3. Filtro de Profesional específico (si aplica)
+        const profMatches = targetProf === 'all' || d.PROFESIONAL === targetProf;
+        
+        return profMatches && val(d.PRO) > 0;
+      });
+
+      if (filtered.length === 0) {
+        alert("No hay datos de programación para los filtros seleccionados.");
+        return;
+      }
+
+      const grouped = {};
+      filtered.forEach(d => {
+        const prof = d.PROFESIONAL || 'SIN NOMBRE';
+        if (!grouped[prof]) grouped[prof] = [];
+        grouped[prof].push(d);
+      });
+
+      const sortedProfs = Object.keys(grouped).sort();
+      const [mNum, yNum] = targetMes.split('/').map(Number);
+      const monthsNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+      const mesNombre = monthsNames[mNum - 1];
+
+      sortedProfs.forEach((prof, idx) => {
+        if (idx > 0) doc.addPage();
+
+        // HEADER
+        doc.setFillColor(24, 113, 185);
+        doc.rect(0, 0, pageW, 25, 'F');
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(255, 255, 255);
+        doc.text(`PROGRAMACIÓN MENSUAL - ${mesNombre.toUpperCase()} ${yNum}`, margin, 12);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Centro Regional de Telemedicina - Red Asistencial La Libertad`, margin, 18);
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text(prof, margin, 35);
+
+        const subHeaderY = 40;
+        doc.setDrawColor(226, 232, 240);
+        doc.line(margin, subHeaderY, pageW - margin, subHeaderY);
+
+        const calX = margin;
+        const calY = 48;
+        const cellSize = 11; // Reducido un poco para modo vertical
+        const calWidth = cellSize * 7;
+        
+        doc.setFontSize(9);
+        doc.setTextColor(100, 116, 139);
+        const daysAbbr = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
+        daysAbbr.forEach((day, i) => {
+          if (i === 0) {
+            doc.setTextColor(220, 38, 38); // Rojo para "DOM"
+          } else {
+            doc.setTextColor(100, 116, 139);
+          }
+          doc.text(day, calX + (i * cellSize) + (cellSize / 2), calY - 3, { align: 'center' });
+        });
+
+        const firstDay = new Date(yNum, mNum - 1, 1).getDay();
+        const daysInMonth = new Date(yNum, mNum, 0).getDate();
+        const shiftsByDay = {};
+        grouped[prof].forEach(d => {
+          const dayNum = parseInt(d.PERIODO.split('/')[0]);
+          if (!shiftsByDay[dayNum]) shiftsByDay[dayNum] = [];
+          shiftsByDay[dayNum].push(d);
+        });
+
+        let dayCounter = 1;
+        for (let row = 0; row < 6; row++) {
+          for (let col = 0; col < 7; col++) {
+            const x = calX + col * cellSize;
+            const y = calY + row * cellSize;
+            if ((row === 0 && col < firstDay) || dayCounter > daysInMonth) {
+              doc.setDrawColor(241, 245, 249);
+              doc.rect(x, y, cellSize, cellSize, 'S');
+            } else {
+              const hasShifts = shiftsByDay[dayCounter];
+              if (hasShifts) {
+                if (hasShifts.length > 1) {
+                  doc.setFillColor(16, 185, 129); // Verde
+                } else {
+                  doc.setFillColor(186, 230, 253); // Azul claro
+                }
+                doc.rect(x, y, cellSize, cellSize, 'F');
+              }
+              doc.setDrawColor(203, 213, 225);
+              doc.rect(x, y, cellSize, cellSize, 'S');
+              doc.setFontSize(9);
+              doc.setFont('helvetica', 'bold');
+              if (hasShifts && hasShifts.length > 1) {
+                doc.setTextColor(255, 255, 255);
+              } else if (col === 0) {
+                doc.setTextColor(220, 38, 38); // Rojo para número en domingo
+              } else {
+                doc.setTextColor(30, 41, 59);
+              }
+              doc.text(dayCounter.toString(), x + 2, y + 4);
+
+              if (hasShifts) {
+                doc.setFontSize(6);
+                hasShifts.forEach((s, sIdx) => {
+                  const hStart = parseInt(String(s.HORA_INI || '').split(':')[0]);
+                  const isM = (!isNaN(hStart) && hStart < 13);
+                  if (col === 0) {
+                    doc.setTextColor(220, 38, 38); // Rojo para letras en domingo
+                  } else if (isM) {
+                    doc.setTextColor(24, 113, 185);
+                  } else {
+                    doc.setTextColor(245, 158, 11);
+                  }
+                  doc.setFont('helvetica', 'bold');
+                  const textX = x + cellSize - 2.5 - (sIdx * 3.5);
+                  doc.text(isM ? 'M' : 'T', textX, y + cellSize - 1.5, { align: 'right' });
+                });
+              }
+              dayCounter++;
+            }
+          }
+          if (dayCounter > daysInMonth) break;
+        }
+
+        const tableX = calX + calWidth + 5; // Menos espacio entre cal y tabla para modo vertical
+        const tableData = grouped[prof].sort((a, b) => {
+          const dA = parseInt(a.PERIODO.split('/')[0]);
+          const dB = parseInt(b.PERIODO.split('/')[0]);
+          return dA - dB;
+        });
+
+        autoTable(doc, {
+          startY: calY - 10,
+          margin: { left: tableX },
+          head: [['FECHA', 'TURNO', 'SUBACTIVIDAD / ESTABLECIMIENTO', 'CUPOS']],
+          body: tableData.map(d => [
+            d.PERIODO,
+            d.TURNO,
+            `${d.SUBACTIVIDAD || d.ACTIVIDAD} - [${getCentroNombre(d.CENTRO)}]`,
+            d.PRO || '0'
+          ]),
+          styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
+          headStyles: { fillColor: [24, 113, 185], fontStyle: 'bold' },
+          columnStyles: { 
+            0: { cellWidth: 18 }, 
+            1: { cellWidth: 30 }, 
+            2: { cellWidth: 'auto' }, 
+            3: { cellWidth: 12, halign: 'center' } 
+          },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          theme: 'grid'
+        });
+
+        const finalY = Math.max(doc.lastAutoTable.finalY, calY + cellSize * 6) + 10;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(24, 113, 185);
+        doc.text(`TOTAL TURNOS PROGRAMADOS: ${tableData.length}`, margin, finalY);
+
+        // FECHA EMISIÓN Y NOTA
+        const emissionDate = new Date().toLocaleString('es-PE');
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Fecha de emisión: ${emissionDate}`, margin, finalY + 7);
+        doc.text(`* Reporte sujeto a cambios en el día`, margin, finalY + 11);
+      });
+
+      const fileName = targetProf === 'all' 
+        ? `Programacion_Mensual_Todos_${targetMes.replace('/', '_')}.pdf`
+        : `Programacion_Mensual_${targetProf.replace(/ /g, '_')}_${targetMes.replace('/', '_')}.pdf`;
+      doc.save(fileName);
+    } catch (error) {
+      console.error('Error generando PDF Mensual:', error);
+      alert('Error crítico al generar el PDF. Revise la consola del navegador.');
+    }
+  };
+
+  const generarPDFProgramacionDia = (targetDate) => {
+    try {
+      if (!targetDate) {
+        alert("Seleccione una fecha.");
+        return;
+      }
+      const [y, m, d] = targetDate.split('-');
+      const dateStr = `${d}/${m}/${y}`;
+      
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 10;
+
+      // HEADER (Mismo diseño que mensual)
+      doc.setFillColor(24, 113, 185);
+      doc.rect(0, 0, pageW, 25, 'F');
+      
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255);
+      doc.text(`PROGRAMACIÓN DEL DÍA: ${dateStr}`, margin, 12);
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Centro Regional de Telemedicina - Red Asistencial La Libertad`, margin, 18);
+
+      const filtered = reportData.filter(d => {
+        if (d.PERIODO !== dateStr || val(d.PRO) <= 0) return false;
+        
+        // Aplicar filtro de activos también aquí por consistencia
+        const dni = String(d.DOC_PROFESIONAL || "").trim();
+        const masterInfo = especialidades.find(e => 
+          String(e.DNI || "").trim() === dni || normalizeName(e.NOMBRES_Y_APELLIDOS) === normalizeName(d.PROFESIONAL)
+        );
+        return masterInfo ? masterInfo.ACTIVO !== false : true;
+      }).sort((a, b) => (a.PROFESIONAL || '').localeCompare(b.PROFESIONAL || ''));
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Resumen de Profesionales Programados: ${filtered.length}`, margin, 35);
+
+      doc.setDrawColor(226, 232, 240);
+      doc.line(margin, 40, pageW - margin, 40);
+
+      autoTable(doc, {
+        startY: 45,
+        head: [['PROFESIONAL', 'TURNO', 'ESTABLECIMIENTO', 'SUBACTIVIDAD', 'CUPOS']],
+        body: filtered.map(d => [
+          d.PROFESIONAL,
+          d.TURNO,
+          getCentroNombre(d.CENTRO),
+          d.SUBACTIVIDAD || d.ACTIVIDAD || '',
+          d.PRO || '0'
+        ]),
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [16, 185, 129], fontStyle: 'bold' },
+        columnStyles: {
+          3: { cellWidth: 'auto' },
+          4: { cellWidth: 15, halign: 'center' }
+        },
+        alternateRowStyles: { fillColor: [240, 253, 244] },
+      });
+      
+      const finalY = doc.lastAutoTable.finalY + 10;
+      const emissionDate = new Date().toLocaleString('es-PE');
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Fecha de emisión: ${emissionDate}`, margin, finalY);
+      doc.text(`* Reporte sujeto a cambios en el día`, margin, finalY + 4);
+
+      doc.save(`Programacion_Dia_${dateStr.replace(/\//g, '_')}.pdf`);
+    } catch (error) {
+      console.error('Error generando PDF Diario:', error);
+      alert('Error crítico al generar el PDF. Revise la consola del navegador.');
+    }
+  };
 
   // ── Generación de PDF Citados ────────────────────────────────────────────────
   const generarPDFCitados = () => {
@@ -1737,19 +2053,96 @@ const App = () => {
 
             {/* Horas Efectivas */}
             {activeProcess === 'horas' && (
-              <div className="glass-card p-12 text-center bg-white/50 backdrop-blur-md border-dashed border-2 border-[#1871B9]/20">
-                <div className="w-20 h-20 bg-[#1871B9]/10 text-[#1871B9] rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
-                  <Hospital size={40} />
+              <div className="space-y-6">
+                <div className="glass-card p-12 text-center bg-white/50 backdrop-blur-md border-dashed border-2 border-[#1871B9]/20">
+                  <div className="w-20 h-20 bg-[#1871B9]/10 text-[#1871B9] rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
+                    <Hospital size={40} />
+                  </div>
+                  <h4 className="text-2xl font-black text-slate-800 mb-4">Sincronización de Horas Efectivas</h4>
+                  <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
+                    Los datos de programación y horas efectivas se cargan automáticamente desde el archivo maestro
+                    <strong className="text-[#1871B9] mx-1">especialidades_horas.json</strong> ubicado en la carpeta
+                    <span className="bg-slate-100 px-2 py-1 rounded font-mono text-xs ml-1 border border-slate-200">/Horas Efectivas</span>.
+                  </p>
+                  <div className="mt-8 flex justify-center gap-4">
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-100">
+                      <CheckCircle2 size={14} /> MODO LECTURA DIRECTA ACTIVO
+                    </div>
+                  </div>
                 </div>
-                <h4 className="text-2xl font-black text-slate-800 mb-4">Sincronización de Horas Efectivas</h4>
-                <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
-                  Los datos de programación y horas efectivas se cargan automáticamente desde el archivo maestro
-                  <strong className="text-[#1871B9] mx-1">especialidades_horas.json</strong> ubicado en la carpeta
-                  <span className="bg-slate-100 px-2 py-1 rounded font-mono text-xs ml-1 border border-slate-200">/Horas Efectivas</span>.
-                </p>
-                <div className="mt-8 flex justify-center gap-4">
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-100">
-                    <CheckCircle2 size={14} /> MODO LECTURA DIRECTA ACTIVO
+
+                {/* NUEVA SECCIÓN: REPORTES PDF DE PROGRAMACIÓN */}
+                <div className="grid grid-cols-2 gap-6">
+                  {/* REPORTE MENSUAL */}
+                  <div className="glass-card p-8">
+                    <div className="w-12 h-12 bg-blue-600/10 text-blue-500 rounded-xl flex items-center justify-center mx-auto mb-6">
+                      <Calendar size={24} />
+                    </div>
+                    <h4 className="text-lg font-black mb-2">Reporte Mensual</h4>
+                    <p className="text-slate-500 text-xs mb-6">Genera un PDF con la programación detallada de todos los profesionales del mes.</p>
+                    
+                    <div className="flex flex-col gap-3">
+                      <select 
+                        className="select-periodo w-full !h-10"
+                        value={filters.mes}
+                        onChange={e => setFilters(f => ({ ...f, mes: e.target.value }))}
+                      >
+                        <option value="all">Seleccionar Mes...</option>
+                        {uniqueLists.meses.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+
+                      <select 
+                        className="select-periodo w-full !h-10"
+                        value={filters.profesional}
+                        onChange={e => setFilters(f => ({ ...f, profesional: e.target.value }))}
+                      >
+                        <option value="all">— TODOS LOS PROFESIONALES ACTIVOS —</option>
+                        {uniqueLists.profesionalesActivos.map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                      
+                      <motion.button
+                        whileHover={{ scale: filters.mes === 'all' ? 1 : 1.02 }} 
+                        whileTap={{ scale: filters.mes === 'all' ? 1 : 0.98 }}
+                        onClick={() => generarPDFProgramacionMes(filters.mes, filters.profesional)}
+                        disabled={filters.mes === 'all'}
+                        className="btn-primary w-full justify-center !h-10"
+                        style={{ background: filters.mes === 'all' ? '#94A3B8' : 'linear-gradient(135deg, #1871B9, #0ea5e9)' }}
+                      >
+                        <FileText size={16} /> Descargar Reporte
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  {/* REPORTE DIARIO */}
+                  <div className="glass-card p-8">
+                    <div className="w-12 h-12 bg-emerald-600/10 text-emerald-500 rounded-xl flex items-center justify-center mx-auto mb-6">
+                      <Activity size={24} />
+                    </div>
+                    <h4 className="text-lg font-black mb-2">Reporte Diario</h4>
+                    <p className="text-slate-500 text-xs mb-6">Genera un PDF con los profesionales programados para el día seleccionado.</p>
+                    
+                    <div className="flex flex-col gap-3">
+                      <input
+                        type="date"
+                        value={dashboardDate}
+                        onChange={e => setDashboardDate(e.target.value)}
+                        className="select-periodo w-full !h-10 !px-4"
+                        style={{ colorScheme: 'light' }}
+                      />
+                      
+                      <motion.button
+                        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                        onClick={() => generarPDFProgramacionDia(dashboardDate)}
+                        className="btn-primary w-full justify-center !h-10"
+                        style={{ background: 'linear-gradient(135deg, #10b981, #34d399)' }}
+                      >
+                        <FileText size={16} /> Descargar Reporte
+                      </motion.button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2810,6 +3203,32 @@ const App = () => {
                     );
                   })}
                 </div>
+                
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => generarPDFProgramacionMes(mesStr, prof.name)}
+                  style={{
+                    width: '100%',
+                    marginTop: '24px',
+                    padding: '14px',
+                    background: 'linear-gradient(135deg, #1871B9, #0ea5e9)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '16px',
+                    fontWeight: 800,
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    boxShadow: '0 10px 20px -5px rgba(24, 113, 185, 0.3)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <FileText size={18} />
+                  EXPORTAR PROGRAMACIÓN A PDF
+                </motion.button>
 
                 {/* Mensaje de ayuda */}
                 <p style={{ textAlign: 'center', fontSize: '10px', color: '#94a3b8', fontWeight: 700, marginTop: '24px', textTransform: 'uppercase', letterSpacing: '0.02em' }}>

@@ -12,14 +12,16 @@
     "ESPECIALIDAD": "PSIQUIATRIA",
     "NOMBRES Y APELLIDOS": "EGUSQUIZA GORRITTI LUIS",
     "DNI": "70801867",
-    "ACTIVO": false
+    "ACTIVO": false,
+    "FOTO_URL": ""
   },
   {
     "ITEM": 4,
     "ESPECIALIDAD": "NEUROLOGIA",
     "NOMBRES Y APELLIDOS": "ANTICONA LEON ARTURO",
     "DNI": "71225254",
-    "ACTIVO": true
+    "ACTIVO": true,
+    "FOTO_URL": ""
   },
   {
     "ITEM": 5,
@@ -58,21 +60,24 @@
     "ESPECIALIDAD": "RADIOLOGIA",
     "NOMBRES Y APELLIDOS": "CARBAJAL CHUQUIRUNA GARY",
     "DNI": "44082227",
-    "ACTIVO": true
+    "ACTIVO": true,
+    "FOTO_URL": ""
   },
   {
     "ITEM": 10,
     "ESPECIALIDAD": "NUTRICION",
     "NOMBRES Y APELLIDOS": "PAIRAZAMAN MURRUGARRA PRISC",
     "DNI": "19253768",
-    "ACTIVO": false
+    "ACTIVO": false,
+    "FOTO_URL": ""
   },
   {
     "ITEM": 11,
     "ESPECIALIDAD": "PSICOLOGIA",
     "NOMBRES Y APELLIDOS": "DEZA MOSTACERO JONATHAN",
     "DNI": "70319547",
-    "ACTIVO": false
+    "ACTIVO": false,
+    "FOTO_URL": ""
   },
   {
     "ITEM": 12,
@@ -87,7 +92,8 @@
     "ESPECIALIDAD": "TERAPIA FISICA",
     "NOMBRES Y APELLIDOS": "MARQUINA PIZAN KAREN",
     "DNI": "45942389",
-    "ACTIVO": false
+    "ACTIVO": false,
+    "FOTO_URL": ""
   },
   {
     "ITEM": 14,
@@ -110,21 +116,24 @@
     "ESPECIALIDAD": "PSICOLOGO",
     "NOMBRES Y APELLIDOS": "BAZAN CAMPOS DOMINGO",
     "DNI": "45715770",
-    "ACTIVO": false
+    "ACTIVO": false,
+    "FOTO_URL": ""
   },
   {
     "ITEM": 22,
     "ESPECIALIDAD": "PSICOLOGO",
     "NOMBRES Y APELLIDOS": "ALVARADO PEREZ ALCIDES WHASHI",
     "DNI": "45891393",
-    "ACTIVO": false
+    "ACTIVO": false,
+    "FOTO_URL": ""
   },
   {
     "ITEM": 24,
     "ESPECIALIDAD": "OTORRINOLARINGOLOGO",
     "NOMBRES Y APELLIDOS": "RENGIFO ROMERO CAROLINA",
     "DNI": "46846738",
-    "ACTIVO": true
+    "ACTIVO": false,
+    "FOTO_URL": ""
   },
   {
     "ITEM": 25,

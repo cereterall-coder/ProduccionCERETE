@@ -10,6 +10,7 @@ __pycache__/
 # Large data files
 consolidado_citados.json
 consolidado_horas_efectivas.json
+consolidado_terminalistas.json
 especialidades_citados.json
 especialidades_horas.json
 
